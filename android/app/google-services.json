@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "7438395273",
+    "project_id": "childmonitoring-ae6b5",
+    "storage_bucket": "childmonitoring-ae6b5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:7438395273:android:12542b51b61686c9b62358",
+        "android_client_info": {
+          "package_name": "com.example.child_moni"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBoD_i8x49XieqvliGoaewg46hKFgfkaYg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

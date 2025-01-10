@@ -1,0 +1,52 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "com.google.gms.google-services" // Firebase plugin
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+android {
+    namespace = "com.example.child_moni"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    defaultConfig {
+        applicationId = "com.example.child_moni" // Ensure this matches your Firebase configuration
+        minSdkVersion 23
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.debug // Change this to a release signing config for production
+            minifyEnabled false // Keep false for now; update for production builds if needed
+            shrinkResources false // Disable resource shrinking
+
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    // Firebase BOM for managing versions of Firebase dependencies
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+
+    // Firebase dependencies
+    implementation 'com.google.firebase:firebase-auth' // Firebase Authentication
+    implementation 'com.google.firebase:firebase-firestore' // Firestore Database
+}
