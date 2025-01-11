@@ -1,3 +1,5 @@
+import 'package:child_moni/Authentication/login.dart';
+import 'package:child_moni/Screens/AddChildScreen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -13,6 +15,7 @@ class MyFamilyScreen extends StatefulWidget {
 class _MyFamilyScreenState extends State<MyFamilyScreen> {
   late GoogleMapController _controller;
   String userEmail = "Loading..."; // Placeholder email
+  List<Map<String, dynamic>> children = []; // List to store children data
 
   // Initial camera position
   static const CameraPosition _initialCameraPosition = CameraPosition(
@@ -24,6 +27,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
   void initState() {
     super.initState();
     fetchUserEmailFromParentCollection();
+    fetchChildrenFromFirebase();
   }
 
   // Fetch the email of the current user from the parent collection in Firestore
@@ -58,6 +62,48 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
     }
   }
 
+  // Fetch children data from Firebase
+  Future<void> fetchChildrenFromFirebase() async {
+    try {
+      final User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final userId = user.uid;
+        final QuerySnapshot childrenSnapshot = await FirebaseFirestore.instance
+            .collection('Parent')
+            .doc(userId)
+            .collection('Child')
+            .get();
+
+        setState(() {
+          children = childrenSnapshot.docs
+              .map((doc) => {
+            'name': doc['name'],
+            // 'image': doc['image'] ?? 'assets/images/onboarding.jpg',
+          })
+              .toList();
+        });
+        print("Children fetched successfully: $children");
+      }
+    } catch (e) {
+      print("Error fetching children: $e");
+      setState(() {
+        children = [];
+      });
+    }
+  }
+
+  // Logout function
+  Future<void> handleLogout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=> LoginScreen()));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: ${e.toString()}")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,7 +120,8 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: CircleAvatar(
-              backgroundImage: AssetImage("assets/images/onboarding.jpg"), // Replace with your image
+              backgroundImage:
+              AssetImage("assets/images/onboarding.jpg"), // Replace with your image
               backgroundColor: Colors.white,
             ),
           ),
@@ -117,7 +164,6 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
               leading: const Icon(Icons.home),
               title: const Text("Home"),
               onTap: () {
-                // Navigate to Home Screen
                 Navigator.pop(context);
               },
             ),
@@ -125,7 +171,6 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
               leading: const Icon(Icons.person),
               title: const Text("Profile"),
               onTap: () {
-                // Navigate to Profile Screen
                 Navigator.pop(context);
               },
             ),
@@ -133,17 +178,14 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
               leading: const Icon(Icons.child_care),
               title: const Text("Child Management"),
               onTap: () {
-                // Navigate to Child Management Screen
-                Navigator.pop(context);
+                Navigator.pushReplacement(context,
+                    MaterialPageRoute(builder: (context) => AddChildScreen()));
               },
             ),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text("Logout"),
-              onTap: () {
-                // Handle Logout
-                Navigator.pop(context);
-              },
+              onTap: handleLogout, // Call the logout function
             ),
           ],
         ),
@@ -166,7 +208,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
               Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFFDAECF2),
-                  borderRadius: BorderRadius.circular(12.0), // Rounded corners
+                  borderRadius: BorderRadius.circular(12.0),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.only(top: 20.0, left: 20),
@@ -180,7 +222,12 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                           children: [
                             GestureDetector(
                               onTap: () {
-                                // Add child logic
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AddChildScreen(),
+                                  ),
+                                );
                               },
                               child: CircleAvatar(
                                 radius: 30,
@@ -193,33 +240,32 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                               ),
                             ),
                             const SizedBox(height: 5),
-                            const Text("Add Child", style: TextStyle(fontSize: 12),),
+                            const Text(
+                              "Add Child",
+                              style: TextStyle(fontSize: 12),
+                            ),
                           ],
                         ),
                         const SizedBox(width: 30),
-                        // Child Avatar 1
-                        Column(
-                          children: [
-                            CircleAvatar(
-                              radius: 30,
-                              backgroundImage: AssetImage("assets/images/onboarding.jpg"), // Replace with child image
+                        // Dynamic Child Avatars
+                        ...children.map((child) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 20),
+                            child: Column(
+                              children: [
+                                CircleAvatar(
+                                  radius: 30,
+                                  backgroundImage: AssetImage("assets/images/onboarding.jpg"),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  child['name'],
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 5),
-                            const Text("Julyana", style: TextStyle(fontSize: 12),),
-                          ],
-                        ),
-                        const SizedBox(width: 20),
-                        // Child Avatar 2
-                        Column(
-                          children: [
-                            CircleAvatar(
-                              radius: 30,
-                              backgroundImage: AssetImage("assets/images/onboarding.jpg"), // Replace with child image
-                            ),
-                            const SizedBox(height: 5),
-                            const Text("Joren", style: TextStyle(fontSize: 12),),
-                          ],
-                        ),
+                          );
+                        }).toList(),
                       ],
                     ),
                   ),
@@ -247,9 +293,9 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                   onMapCreated: (GoogleMapController controller) {
                     _controller = controller;
                   },
-                  mapType: MapType.normal, // Choose from normal, satellite, terrain, hybrid
-                  myLocationEnabled: true, // Show user's location on the map
-                  zoomControlsEnabled: true, // Enable zoom controls
+                  mapType: MapType.normal,
+                  myLocationEnabled: true,
+                  zoomControlsEnabled: true,
                 ),
               ),
               const SizedBox(height: 20),

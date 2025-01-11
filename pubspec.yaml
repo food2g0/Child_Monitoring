@@ -41,6 +41,9 @@ dependencies:
   cloud_firestore: ^5.5.1
   firebase_auth: ^5.3.4
   google_maps_flutter: ^2.10.0
+  permission_handler: ^11.3.1
+  package_info_plus: ^8.1.2
+  installed_apps: ^1.5.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

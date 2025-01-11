@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.child_moni"
-    compileSdk = flutter.compileSdkVersion
+    compileSdkVersion 34  // Ensure this is up to date
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -22,9 +22,11 @@ android {
     defaultConfig {
         applicationId = "com.example.child_moni" // Ensure this matches your Firebase configuration
         minSdkVersion 23
-        targetSdk = flutter.targetSdkVersion
+        //noinspection EditedTargetSdkVersion
+        targetSdkVersion 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
     }
 
     buildTypes {
@@ -50,3 +52,4 @@ dependencies {
     implementation 'com.google.firebase:firebase-auth' // Firebase Authentication
     implementation 'com.google.firebase:firebase-firestore' // Firestore Database
 }
+apply plugin: 'com.google.gms.google-services'

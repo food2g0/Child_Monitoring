@@ -1,3 +1,4 @@
+import 'package:child_moni/Screens/ChildScreen.dart';
 import 'package:child_moni/Screens/PinScreen.dart';
 import 'package:flutter/material.dart';
 
@@ -15,6 +16,7 @@ class ChooseScreen extends StatelessWidget {
     }
 
     void handleChildPress() {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=>ChildScreen()));
 
     }
 
