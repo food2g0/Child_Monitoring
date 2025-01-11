@@ -32,6 +32,8 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   String? currentAppPackage; // Track the currently monitored app's package name
   int usageTimeInSeconds = 0; // Track the usage time in seconds
   static var platform = MethodChannel('com.example.app/foreground');
+  Map<String, int> previousUsageTime = {}; // Map to store the previous usage time for each app
+
 
   // Initial camera position
   static const CameraPosition _initialCameraPosition = CameraPosition(
@@ -47,17 +49,18 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     fetchInstalledApps(); // Fetch installed apps and start monitoring automatically
     fetchUserEmailFromParentCollection();
     requestPermissions();
-    requestUsageAccessPermission();// Request permissions when the screen is initialized
+    requestUsageAccessPermission(); // Request permissions when the screen is initialized
   }
-  Future<String?> getForegroundApp() async {
-    try {
-      final String? result = await platform.invokeMethod('getForegroundApp');
-      return result;
-    } on PlatformException catch (e) {
-      print('Error checking foreground app: $e');
-      return null;
-    }
-  }
+
+  // Future<String?> getForegroundApp() async {
+  //   try {
+  //     final String? result = await platform.invokeMethod('getForegroundApp');
+  //     return result;
+  //   } on PlatformException catch (e) {
+  //     print('Error checking foreground app: $e');
+  //     return null;
+  //   }
+  // }
 
   // Fetch the email of the current user from the parent collection in Firestore
   Future<void> fetchUserEmailFromParentCollection() async {
@@ -90,6 +93,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       });
     }
   }
+
   Future<void> requestUsageAccessPermission() async {
     if (Platform.isAndroid) {
       const platform = MethodChannel('com.example.app/foreground');
@@ -110,7 +114,6 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     } else {
       print("Location permission denied.");
     }
-
 
     // Request app usage permission for Android 10+
     if (Platform.isAndroid && int.parse(Platform.version.split(' ')[0].split('.')[0]) >= 29) {
@@ -169,9 +172,6 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     }
   }
 
-
-
-// Start tracking the app usage time for a specific app
   void startTrackingAppUsage(String packageName) {
     setState(() {
       isMonitoring = true;
@@ -181,28 +181,37 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
     // Initialize the start time when the app is opened
     startTime = DateTime.now();
+    DateTime lastUpdateTime = DateTime.now(); // Track when the last database update occurred
 
     // Start a timer to check the foreground app and track usage time
-    timer = Timer.periodic(const Duration(seconds: 1), (Timer t) async {
+    timer = Timer.periodic(const Duration(seconds: 1), (Timer t) async { // Check every second
       try {
         var platform = MethodChannel('com.example.app/foreground');
         final String? foregroundApp = await platform.invokeMethod('getForegroundApp');
 
         if (foregroundApp == packageName) {
+          // Calculate the elapsed time based on the start time
+          final elapsedTime = DateTime.now().difference(startTime).inSeconds;
           setState(() {
-            usageTimeInSeconds++;
+            usageTimeInSeconds = elapsedTime; // Update usage time based on the exact difference
           });
-          updateAppUsageTime(packageName, usageTimeInSeconds); // Update the database
+
+          // Update the database every 10 seconds for better performance
+          if (DateTime.now().difference(lastUpdateTime).inSeconds >= 10) {
+            updateAppUsageTime(packageName, usageTimeInSeconds); // Update the database
+            lastUpdateTime = DateTime.now(); // Update the last update time
+          }
         }
       } catch (e) {
         print("Error checking foreground app: $e");
       }
     });
-
   }
 
 
-// Upload installed apps and usage time to Firestore
+
+
+  // Upload installed apps and usage time to Firestore
   Future<void> uploadInstalledAppsWithUsageTime() async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
@@ -238,8 +247,10 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     }
   }
 
+  // Update Firestore with the usage time for a specific app
+  // Update Firestore with the usage time for a specific app
 // Update Firestore with the usage time for a specific app
-  Future<void> updateAppUsageTime(String packageName, int usageTime) async {
+  Future<void> updateAppUsageTime(String packageName, int elapsedTime) async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -259,17 +270,50 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
         if (appDoc.docs.isNotEmpty) {
           final docRef = appDoc.docs.first.reference;
+
+          // Get the current usage time and last update timestamp from Firestore
+          final currentDoc = await docRef.get();
+          final currentUsageTime = currentDoc.data()?['usageTime'] ?? 0;
+          final lastUpdateTimestamp = currentDoc.data()?['lastUpdateTimestamp']?.toDate();
+
+          // If no timestamp exists, initialize it
+          final currentTimestamp = DateTime.now();
+
+          // If the last update timestamp exists, calculate the elapsed time since the last update
+          if (lastUpdateTimestamp != null) {
+            final timeDifference = currentTimestamp.difference(lastUpdateTimestamp).inSeconds;
+            setState(() {
+              usageTimeInSeconds = currentUsageTime + timeDifference; // Add the time difference
+            });
+          } else {
+            setState(() {
+              usageTimeInSeconds = currentUsageTime;
+            });
+          }
+
+          // Update Firestore with the new usage time and timestamp
           await docRef.update({
-            'usageTime': FieldValue.increment(usageTime), // Increment usage time
+            'usageTime': usageTimeInSeconds, // Update total usage time
+            'lastUpdateTimestamp': currentTimestamp, // Update the last update timestamp
           });
 
-          print("Updated usage time for app: $packageName, Time: $usageTime seconds");
+          print("Updated usage time for app: $packageName, Time: $usageTimeInSeconds seconds");
         }
       }
     } catch (e) {
       print("Error updating app usage time: $e");
     }
   }
+
+
+
+  // Function to convert seconds to hours:minutes:seconds format
+  // String formatTime(int seconds) {
+  //   int hours = seconds ~/ 36000;
+  //   int minutes = (seconds % 36000) ~/ 60;
+  //   int remainingSeconds = seconds % 60;
+  //   return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  // }
 
   @override
   void dispose() {
@@ -417,16 +461,15 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              ListView(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  activityItem("Facebook", Icons.facebook, Colors.blue),
-                  activityItem("Youtube", Icons.youtube_searched_for, Colors.red),
-                  activityItem("Tiktok", Icons.music_note, Colors.black),
-                  activityItem("Instagram", Icons.camera_alt, Colors.purple),
-                ],
-              ),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: installedApps.length,
+            itemBuilder: (context, index) {
+              final app = installedApps[index];
+              return activityItem(app.name, app.packageName); // Pass title and packageName
+            },
+          )
             ],
           ),
         ),
@@ -434,18 +477,103 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     );
   }
 
-  Widget activityItem(String title, IconData icon, Color iconColor) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: iconColor.withOpacity(0.2),
-          child: Icon(icon, color: iconColor),
-        ),
-        title: Text(title),
-      ),
+  Widget activityItem(String title, String packageName) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('Parent')
+          .doc(FirebaseAuth.instance.currentUser?.uid)
+          .collection('Child')
+          .doc(widget.childDocId)
+          .collection('InstalledApps')
+          .orderBy('usageTime', descending: true)
+          .snapshots(), // Listen for real-time updates
+      builder: (context, snapshot) {
+        // If loading data for the first time
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          return const ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Colors.blue,
+              child: CircularProgressIndicator(),
+            ),
+            title: Text("Loading..."),
+          );
+        }
+
+        // If there is an error
+        if (snapshot.hasError) {
+          return ListTile(
+            leading: const CircleAvatar(
+              backgroundColor: Colors.red,
+              child: Icon(Icons.error),
+            ),
+            title: Text("Error: ${snapshot.error}"),
+          );
+        }
+
+        // If no data
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return ListTile(
+            leading: const CircleAvatar(
+              backgroundColor: Colors.grey,
+              child: Icon(Icons.not_interested),
+            ),
+            title: Text("No data available"),
+          );
+        }
+
+        // Once data is available, update UI
+        final appDocs = snapshot.data!.docs;
+        return Column(
+          children: appDocs.map((doc) {
+            final appData = doc.data() as Map<String, dynamic>;
+            final usageTimeInSeconds = appData['usageTime'] ?? 0;
+            final packageName = appData['packageName'] ?? 'Unknown Package';
+            final appName = appData['appName'] ?? 'Unknown App';
+
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.blue.withOpacity(0.2),
+                  child: Icon(Icons.apps, color: Colors.blue),
+                ),
+                title: Text(appName),
+                subtitle: Text('Usage Time: ${formatTime(usageTimeInSeconds)}'),
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
+
+
+  }
+
+
+
+
+
+
+
+
+
+
+
+  // Function to format time as HH:MM:SS
+  String formatTime(int seconds) {
+    int hours = seconds ~/ 3600;
+    int minutes = (seconds % 3600) ~/ 60;
+    int remainingSeconds = seconds % 60;
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<String?> getForegroundApp() async {
+    try {
+      final String? result = await platform.invokeMethod('getForegroundApp');
+      return result;
+    } on PlatformException catch (e) {
+      print('Error checking foreground app: $e');
+      return null;
+    }
   }
 }
-
-
