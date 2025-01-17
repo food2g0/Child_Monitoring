@@ -10,10 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:package_info_plus/package_info_plus.dart'; // Import package_info_plus
+import 'package:package_info_plus/package_info_plus.dart';
 
 class ChildHomeScreen extends StatefulWidget {
-  final String childDocId; // Pass the child document ID
+  final String childDocId;
 
   const ChildHomeScreen({super.key, required this.childDocId});
 
@@ -23,51 +23,62 @@ class ChildHomeScreen extends StatefulWidget {
 
 class _ChildHomeScreenState extends State<ChildHomeScreen> {
   late GoogleMapController _controller;
-  String userEmail = "Loading..."; // Placeholder email
-  List<Map<String, dynamic>> children = []; // List to store children data
-  List<AppInfo> installedApps = []; // List to store AppInfo objects
+  String userEmail = "Loading...";
+  List<AppInfo> installedApps = [];
   late DateTime startTime;
   late DateTime endTime;
   late Timer timer;
-  String? currentAppPackage; // Track the currently monitored app's package name
-  int usageTimeInSeconds = 0; // Track the usage time in seconds
+  String? currentAppPackage;
+  int usageTimeInSeconds = 0;
   static var platform = MethodChannel('com.example.app/foreground');
-  Map<String, int> previousUsageTime = {}; // Map to store the previous usage time for each app
+  Map<String, int> previousUsageTime = {};
+  int currentPage = 0; // To keep track of the current page
+  int appsPerPage = 5; // Number of apps per page
+
+  String formatDuration(int seconds) {
+    int hours = seconds ~/ 3600;
+    int minutes = (seconds % 3600) ~/ 60;
+    int remainingSeconds = seconds % 60;
+
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
 
 
-  // Initial camera position
   static const CameraPosition _initialCameraPosition = CameraPosition(
-    target: LatLng(14.5995, 120.9842), // Replace with desired coordinates
+    target: LatLng(14.5995, 120.9842),
     zoom: 12.0,
   );
 
-  bool isMonitoring = false; // Track whether monitoring is active
+  bool isMonitoring = false;
 
   @override
   void initState() {
     super.initState();
-    fetchInstalledApps(); // Fetch installed apps and start monitoring automatically
+    fetchInstalledApps();
     fetchUserEmailFromParentCollection();
     requestPermissions();
-    requestUsageAccessPermission(); // Request permissions when the screen is initialized
+    requestUsageAccessPermission();
+  }
+  void goToNextPage() {
+    setState(() {
+      if (currentPage < (installedApps.length / appsPerPage).floor()) {
+        currentPage++;
+      }
+    });
   }
 
-  // Future<String?> getForegroundApp() async {
-  //   try {
-  //     final String? result = await platform.invokeMethod('getForegroundApp');
-  //     return result;
-  //   } on PlatformException catch (e) {
-  //     print('Error checking foreground app: $e');
-  //     return null;
-  //   }
-  // }
-
-  // Fetch the email of the current user from the parent collection in Firestore
+  void goToPreviousPage() {
+    setState(() {
+      if (currentPage > 0) {
+        currentPage--;
+      }
+    });
+  }
   Future<void> fetchUserEmailFromParentCollection() async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final userId = user.uid; // Get the user ID
+        final userId = user.uid;
         final DocumentSnapshot parentDoc = await FirebaseFirestore.instance
             .collection('Parent')
             .doc(userId)
@@ -96,7 +107,6 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
   Future<void> requestUsageAccessPermission() async {
     if (Platform.isAndroid) {
-      const platform = MethodChannel('com.example.app/foreground');
       try {
         await platform.invokeMethod('requestUsageAccess');
       } catch (e) {
@@ -105,9 +115,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     }
   }
 
-  // Request location and app usage permissions
   Future<void> requestPermissions() async {
-    // Request location permission
     PermissionStatus locationPermission = await Permission.location.request();
     if (locationPermission.isGranted) {
       print("Location permission granted.");
@@ -115,9 +123,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       print("Location permission denied.");
     }
 
-    // Request app usage permission for Android 10+
     if (Platform.isAndroid && int.parse(Platform.version.split(' ')[0].split('.')[0]) >= 29) {
-      // For Android 10 and higher, request activity recognition permission
       PermissionStatus appUsagePermission = await Permission.activityRecognition.request();
       if (appUsagePermission.isGranted) {
         print("App usage permission granted.");
@@ -131,37 +137,59 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
   Future<void> fetchInstalledApps() async {
     try {
-      // Check if permission is granted before fetching apps
       if (await Permission.activityRecognition.isGranted || Platform.isIOS) {
-        // Fetch installed apps as AppInfo objects
         List<AppInfo> apps = await InstalledApps.getInstalledApps();
         print("Installed apps fetched: ${apps.length}");
 
         if (apps.isNotEmpty) {
           installedApps = apps.where((app) {
-            // List of known system app package names to exclude
             List<String> systemAppPackages = [
-              'com.android.settings', // Settings app
-              'com.android.contacts', // Contacts app
-              'com.android.dialer', // Dialer app
-              'com.android.messaging', // Messages app
+              'com.android.settings',
+              'com.android.contacts',
+              'com.android.dialer',
+              'com.android.messaging',
               'com.google.android.gm',
-              // Add other known system apps here
             ];
-
-            // Filter out system apps based on package name
             return !systemAppPackages.contains(app.packageName);
           }).toList();
 
-          // Log the filtered apps
-          print("Filtered installed apps: ${installedApps.length}");
+          // Fetch the current usage time from Firestore and update the local state
+          final User? user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            final userId = user.uid;
+            final appsCollection = FirebaseFirestore.instance
+                .collection('Parent')
+                .doc(userId)
+                .collection('Child')
+                .doc(widget.childDocId)
+                .collection('InstalledApps');
 
-          // Start uploading apps and their initial usage time to Firestore
-          uploadInstalledAppsWithUsageTime();
+            // Listen for real-time changes in usage time for each app
+            for (var app in installedApps) {
+              appsCollection
+                  .where('packageName', isEqualTo: app.packageName)
+                  .snapshots()
+                  .listen((snapshot) {
+                if (snapshot.docs.isNotEmpty) {
+                  final appData = snapshot.docs.first;
+                  setState(() {
+                    // Update the usage time for this app
+                    previousUsageTime[app.packageName] = appData['usageTime'] ?? 0;
 
-          // Start monitoring all apps immediately
-          for (var app in installedApps) {
-            startTrackingAppUsage(app.packageName); // Start monitoring each app
+                    // Sort the apps based on usage time after the update
+                    installedApps.sort((a, b) {
+                      int timeA = previousUsageTime[a.packageName] ?? 0;
+                      int timeB = previousUsageTime[b.packageName] ?? 0;
+                      return timeB.compareTo(timeA); // Sort in descending order
+                    });
+                  });
+                }
+              });
+            }
+
+            // Upload installed apps and start tracking app usage
+            uploadInstalledAppsWithUsageTime();
+            startTrackingAppUsage();
           }
         }
       } else {
@@ -172,34 +200,37 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     }
   }
 
-  void startTrackingAppUsage(String packageName) {
+
+
+
+
+
+
+
+
+  void startTrackingAppUsage() {
     setState(() {
       isMonitoring = true;
-      usageTimeInSeconds = 0; // Reset usage time
-      currentAppPackage = packageName; // Store the current app's package name
+      // Initialize usageTimeInSeconds to the stored value if it exists
+      usageTimeInSeconds = previousUsageTime[currentAppPackage] ?? 0;
     });
 
-    // Initialize the start time when the app is opened
     startTime = DateTime.now();
-    DateTime lastUpdateTime = DateTime.now(); // Track when the last database update occurred
+    DateTime lastUpdateTime = DateTime.now();
 
-    // Start a timer to check the foreground app and track usage time
-    timer = Timer.periodic(const Duration(seconds: 1), (Timer t) async { // Check every second
+    timer = Timer.periodic(const Duration(seconds: 5), (Timer t) async {
       try {
-        var platform = MethodChannel('com.example.app/foreground');
         final String? foregroundApp = await platform.invokeMethod('getForegroundApp');
 
-        if (foregroundApp == packageName) {
-          // Calculate the elapsed time based on the start time
+        if (foregroundApp != null && installedApps.any((app) => app.packageName == foregroundApp)) {
           final elapsedTime = DateTime.now().difference(startTime).inSeconds;
           setState(() {
-            usageTimeInSeconds = elapsedTime; // Update usage time based on the exact difference
+            usageTimeInSeconds = elapsedTime;
           });
 
-          // Update the database every 10 seconds for better performance
           if (DateTime.now().difference(lastUpdateTime).inSeconds >= 10) {
-            updateAppUsageTime(packageName, usageTimeInSeconds); // Update the database
-            lastUpdateTime = DateTime.now(); // Update the last update time
+            updateAppUsageTime(foregroundApp, usageTimeInSeconds);
+            lastUpdateTime = DateTime.now();
           }
         }
       } catch (e) {
@@ -211,7 +242,6 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
 
 
-  // Upload installed apps and usage time to Firestore
   Future<void> uploadInstalledAppsWithUsageTime() async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
@@ -221,23 +251,22 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
             .collection('Parent')
             .doc(userId)
             .collection('Child')
-            .doc(widget.childDocId) // Pass the child document ID
+            .doc(widget.childDocId)
             .collection('InstalledApps');
 
         for (var app in installedApps) {
-          // Check if the app already exists in Firestore
           final existingAppDoc = await appsCollection
               .where('packageName', isEqualTo: app.packageName)
               .limit(1)
               .get();
 
           if (existingAppDoc.docs.isEmpty) {
-            // Upload app information and initial usage time if not found
             await appsCollection.add({
               'packageName': app.packageName,
               'name': app.name,
               'timestamp': Timestamp.now(),
-              'usageTime': 0, // Initial usage time (0 seconds)
+              'usageTime': 0,
+              'status': "Open"
             });
           }
         }
@@ -247,9 +276,6 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     }
   }
 
-  // Update Firestore with the usage time for a specific app
-  // Update Firestore with the usage time for a specific app
-// Update Firestore with the usage time for a specific app
   Future<void> updateAppUsageTime(String packageName, int elapsedTime) async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
@@ -307,24 +333,18 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
 
 
-  // Function to convert seconds to hours:minutes:seconds format
-  // String formatTime(int seconds) {
-  //   int hours = seconds ~/ 36000;
-  //   int minutes = (seconds % 36000) ~/ 60;
-  //   int remainingSeconds = seconds % 60;
-  //   return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
-  // }
+
+
+
 
   @override
   void dispose() {
     super.dispose();
-    // Cancel the timer when the app is disposed
     if (isMonitoring) {
       timer.cancel();
     }
   }
 
-  // Logout function
   Future<void> handleLogout() async {
     try {
       await FirebaseAuth.instance.signOut();
@@ -338,22 +358,20 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    int startIndex = currentPage * appsPerPage;
+    int endIndex = (currentPage + 1) * appsPerPage;
+    List<AppInfo> currentAppsPage = installedApps.sublist(startIndex, endIndex > installedApps.length ? installedApps.length : endIndex);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          "Home",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text("Home", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: const Color(0xFFFFC0CB),
         actions: [
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: CircleAvatar(
-              backgroundImage:
-              AssetImage("assets/images/onboarding.jpg"), // Replace with your image
+              backgroundImage: AssetImage("assets/images/onboarding.jpg"),
               backgroundColor: Colors.white,
             ),
           ),
@@ -372,23 +390,11 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
                 children: [
                   const CircleAvatar(
                     radius: 30,
-                    backgroundImage: AssetImage("assets/images/onboarding.jpg"), // Replace with user image
+                    backgroundImage: AssetImage("assets/images/onboarding.jpg"),
                   ),
                   const SizedBox(height: 10),
-                  const Text(
-                    "Welcome, User",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    userEmail,
-                    style: const TextStyle(
-                      color: Colors.white,
-                    ),
-                  ),
+                  const Text("Welcome, User", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Text(userEmail, style: const TextStyle(color: Colors.white)),
                 ],
               ),
             ),
@@ -409,7 +415,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text("Logout"),
-              onTap: handleLogout, // Call the logout function
+              onTap: handleLogout,
             ),
           ],
         ),
@@ -421,159 +427,49 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-
-              // Start/Stop Monitoring Button
-
               const SizedBox(height: 20),
-
-              // Location Section
-              const Text(
-                "Location",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              const Text("Location", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               Container(
                 height: 200,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
                 child: GoogleMap(
                   initialCameraPosition: _initialCameraPosition,
                   onMapCreated: (GoogleMapController controller) {
                     _controller = controller;
                   },
-                  mapType: MapType.normal,
-                  myLocationEnabled: true,
-                  zoomControlsEnabled: true,
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Activities Section
-              const Text(
-                "Activities",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              const Text("Installed Apps", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: installedApps.length,
-            itemBuilder: (context, index) {
-              final app = installedApps[index];
-              return activityItem(app.name, app.packageName); // Pass title and packageName
-            },
-          )
+              ...currentAppsPage.map((app) {
+                int appUsageTime = previousUsageTime[app.packageName] ?? 0;
+                return ListTile(
+                  leading: Icon(Icons.apps),
+                  title: Text(app.name),
+                  subtitle: Text("Usage Time: ${formatDuration(appUsageTime)}"),
+                );
+              }).toList(),
+              // Pagination buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: goToPreviousPage,
+                    child: const Text("Previous"),
+                  ),
+                  const SizedBox(width: 20),
+                  ElevatedButton(
+                    onPressed: goToNextPage,
+                    child: const Text("Next"),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
       ),
     );
-  }
-
-  Widget activityItem(String title, String packageName) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('Parent')
-          .doc(FirebaseAuth.instance.currentUser?.uid)
-          .collection('Child')
-          .doc(widget.childDocId)
-          .collection('InstalledApps')
-          .orderBy('usageTime', descending: true)
-          .snapshots(), // Listen for real-time updates
-      builder: (context, snapshot) {
-        // If loading data for the first time
-        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-          return const ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.blue,
-              child: CircularProgressIndicator(),
-            ),
-            title: Text("Loading..."),
-          );
-        }
-
-        // If there is an error
-        if (snapshot.hasError) {
-          return ListTile(
-            leading: const CircleAvatar(
-              backgroundColor: Colors.red,
-              child: Icon(Icons.error),
-            ),
-            title: Text("Error: ${snapshot.error}"),
-          );
-        }
-
-        // If no data
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return ListTile(
-            leading: const CircleAvatar(
-              backgroundColor: Colors.grey,
-              child: Icon(Icons.not_interested),
-            ),
-            title: Text("No data available"),
-          );
-        }
-
-        // Once data is available, update UI
-        final appDocs = snapshot.data!.docs;
-        return Column(
-          children: appDocs.map((doc) {
-            final appData = doc.data() as Map<String, dynamic>;
-            final usageTimeInSeconds = appData['usageTime'] ?? 0;
-            final packageName = appData['packageName'] ?? 'Unknown Package';
-            final appName = appData['appName'] ?? 'Unknown App';
-
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.blue.withOpacity(0.2),
-                  child: Icon(Icons.apps, color: Colors.blue),
-                ),
-                title: Text(appName),
-                subtitle: Text('Usage Time: ${formatTime(usageTimeInSeconds)}'),
-              ),
-            );
-          }).toList(),
-        );
-      },
-    );
-
-
-  }
-
-
-
-
-
-
-
-
-
-
-
-  // Function to format time as HH:MM:SS
-  String formatTime(int seconds) {
-    int hours = seconds ~/ 3600;
-    int minutes = (seconds % 3600) ~/ 60;
-    int remainingSeconds = seconds % 60;
-    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
-  }
-
-  Future<String?> getForegroundApp() async {
-    try {
-      final String? result = await platform.invokeMethod('getForegroundApp');
-      return result;
-    } on PlatformException catch (e) {
-      print('Error checking foreground app: $e');
-      return null;
-    }
   }
 }
