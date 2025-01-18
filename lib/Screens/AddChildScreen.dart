@@ -1,3 +1,4 @@
+import 'package:child_moni/Screens/ChildManagementScreen.dart';
 import 'package:child_moni/Screens/HomeScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,6 +14,21 @@ class _AddChildScreenState extends State<AddChildScreen> {
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _pinController = TextEditingController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  int _selectedIndex = 0;
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    if (index == 1) {
+      // Navigate to Children Screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => ChildrenScreen()),
+      );
+    }
+  }
 
   Future<void> _addChild() async {
     final String name = _nameController.text.trim();
@@ -34,7 +50,7 @@ class _AddChildScreenState extends State<AddChildScreen> {
       // Reference to the parent's document
       final parentDocRef = _firestore.collection('Parent').doc(userId);
 
-      // Add the child as a new document in the "Child" sub-collection
+      // Add the child as a new document in the "Child" sub-collectiona
       await parentDocRef.collection('Child').add({
         'name': name,
         'age': int.parse(age),
@@ -219,7 +235,23 @@ class _AddChildScreenState extends State<AddChildScreen> {
             ),
           ),
         ),
+
       ),
+      bottomNavigationBar: BottomNavigationBar(
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.person_add_alt),
+            label: 'Add Child'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.people),
+            label: 'Children'),
+          ],
+        currentIndex: _selectedIndex,
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        onTap: _onItemTapped,
+
+      ),
+
 
     );
   }

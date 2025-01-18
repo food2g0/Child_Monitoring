@@ -1,5 +1,6 @@
 import 'package:child_moni/Authentication/login.dart';
 import 'package:child_moni/Screens/AddChildScreen.dart';
+import 'package:child_moni/Screens/SelectedChildScreen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -15,7 +16,9 @@ class MyFamilyScreen extends StatefulWidget {
 class _MyFamilyScreenState extends State<MyFamilyScreen> {
   late GoogleMapController _controller;
   String userEmail = "Loading..."; // Placeholder email
-  List<Map<String, dynamic>> children = []; // List to store children data
+  List<Map<String, dynamic>> children = []; // List to store children data\
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Initial camera position
   static const CameraPosition _initialCameraPosition = CameraPosition(
@@ -27,7 +30,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
   void initState() {
     super.initState();
     fetchUserEmailFromParentCollection();
-    fetchChildrenFromFirebase();
+    _fetchChildren();
   }
 
   // Fetch the email of the current user from the parent collection in Firestore
@@ -62,41 +65,43 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
     }
   }
 
-  // Fetch children data from Firebase
-  Future<void> fetchChildrenFromFirebase() async {
+  Future<void> _fetchChildren() async {
     try {
-      final User? user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final userId = user.uid;
-        final QuerySnapshot childrenSnapshot = await FirebaseFirestore.instance
-            .collection('Parent')
-            .doc(userId)
-            .collection('Child')
-            .get();
+      final String userId = _auth.currentUser!.uid;
 
-        setState(() {
-          children = childrenSnapshot.docs
-              .map((doc) => {
-            'name': doc['name'],
-            // 'image': doc['image'] ?? 'assets/images/onboarding.jpg',
-          })
-              .toList();
-        });
-        print("Children fetched successfully: $children");
-      }
-    } catch (e) {
-      print("Error fetching children: $e");
+      // Fetch all documents in the "Child" sub-collection
+      final QuerySnapshot snapshot = await _firestore
+          .collection('Parent')
+          .doc(userId)
+          .collection('Child')
+          .orderBy('createdAt', descending: true)
+          .get();
+      print('Fetched children: ${snapshot.docs.map((doc) => doc.data())}');
+
+      // Map data and update the state
       setState(() {
-        children = [];
+        children = snapshot.docs.map((doc) {
+          return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
+        }).toList();
       });
+    } catch (e) {
+      debugPrint('Error fetching children: $e');
     }
   }
+
+
+
+
+
+
+
+
 
   // Logout function
   Future<void> handleLogout() async {
     try {
       await FirebaseAuth.instance.signOut();
-     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=> LoginScreen()));
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=> LoginScreen()));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: ${e.toString()}")),
@@ -196,81 +201,127 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Your Children Section
-              const Text(
-                "Your Children",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+
+
               const SizedBox(height: 10),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDAECF2),
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 20.0, left: 20),
-                  child: SizedBox(
-                    height: 100,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        // Add Child Button
-                        Column(
-                          children: [
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => AddChildScreen(),
-                                  ),
-                                );
-                              },
-                              child: CircleAvatar(
-                                radius: 30,
-                                backgroundColor: const Color(0xFFE0F7FA),
-                                child: const Icon(
-                                  Icons.add,
-                                  color: Colors.blue,
-                                  size: 30,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            const Text(
-                              "Add Child",
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          ],
+
+              SizedBox(
+                height: 170, // Adjust the height for the container
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title Section
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                        "Your Children",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
                         ),
-                        const SizedBox(width: 30),
-                        // Dynamic Child Avatars
-                        ...children.map((child) {
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 20),
-                            child: Column(
-                              children: [
-                                CircleAvatar(
-                                  radius: 30,
-                                  backgroundImage: AssetImage("assets/images/onboarding.jpg"),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  child['name'],
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ],
+                      ),
                     ),
-                  ),
+
+                    // Container with background color DAECF2
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(16.0),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDAECF2), // Light blue background color
+                          borderRadius: BorderRadius.circular(12), // Rounded corners
+                        ),
+                        child: children.isEmpty
+                            ? const Center(
+                          child: CircularProgressIndicator(), // Show a loader while data is loading
+                        )
+                            :  ListView.builder(
+                          scrollDirection: Axis.horizontal, // Horizontal scrolling
+                          itemCount: children.length + 1, // Extra item for the "Add Child" button
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              // "Add Child" Button at the beginning
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => AddChildScreen(), // Navigate to AddChildScreen
+                                      ),
+                                    );
+                                  },
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 30,
+                                        backgroundColor: Colors.blueAccent,
+                                        child: const Icon(Icons.add, color: Colors.white), // Plus icon
+                                      ),
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        "Add Child",
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.black87,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            } else {
+                              // Child Item
+                              final child = children[index - 1]; // Adjust index for children list
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                child: InkWell(
+                                  onTap: () {
+                                    final childId = child['id'];
+
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            SelectedChildScreen(childId: childId),
+                                      ),
+                                    );
+                                  },
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 30,
+                                        backgroundImage: AssetImage("assets/images/onboarding.jpg"), // Replace with your image
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        child['name'] ?? 'Unknown',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.black87,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+
+
 
               const SizedBox(height: 20),
 

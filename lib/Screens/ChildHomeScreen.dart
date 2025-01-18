@@ -237,6 +237,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         print("Error checking foreground app: $e");
       }
     });
+
   }
 
 
