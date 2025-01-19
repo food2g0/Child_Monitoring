@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:child_moni/Authentication/login.dart';
@@ -58,6 +59,8 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     fetchUserEmailFromParentCollection();
     requestPermissions();
     requestUsageAccessPermission();
+    listenToAppStatusUpdates();
+    checkAndRequestOverlayPermission();
   }
   void goToNextPage() {
     setState(() {
@@ -66,6 +69,30 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       }
     });
   }
+  Future<void> checkAndRequestOverlayPermission() async {
+    if (Platform.isAndroid) {
+      const platform = MethodChannel('com.example.app/overlay');
+
+      try {
+        final bool hasPermission = await platform.invokeMethod('checkOverlayPermission');
+        if (!hasPermission) {
+          await platform.invokeMethod('requestOverlayPermission');
+          Fluttertoast.showToast(
+            msg: "Overlay permission requested. Please enable it in settings.",
+            toastLength: Toast.LENGTH_LONG,
+          );
+        } else {
+          Fluttertoast.showToast(msg: "Overlay permission already granted.");
+        }
+      } catch (e) {
+        print("Error requesting overlay permission: $e");
+      }
+    } else {
+      Fluttertoast.showToast(msg: "Overlay permission not required for this platform.");
+    }
+  }
+
+
 
   void goToPreviousPage() {
     setState(() {
@@ -74,6 +101,39 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       }
     });
   }
+  void listenToAppStatusUpdates() {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userId = user.uid;
+      final appsCollection = FirebaseFirestore.instance
+          .collection('Parent')
+          .doc(userId)
+          .collection('Child')
+          .doc(widget.childDocId)
+          .collection('InstalledApps');
+
+      appsCollection.snapshots().listen((snapshot) {
+        for (var change in snapshot.docChanges) {
+          if (change.type == DocumentChangeType.modified) {
+            final appData = change.doc.data();
+            if (appData != null && appData['isBlocked'] == true) {
+              final String? foregroundApp = currentAppPackage;
+              if (foregroundApp == appData['packageName']) {
+                blockApp(foregroundApp!);
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  void blockApp(String packageName) {
+    platform.invokeMethod('closeApp', {'packageName': packageName});
+    print("Blocked app closed: $packageName");
+  }
+
+
   Future<void> fetchUserEmailFromParentCollection() async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
@@ -107,13 +167,13 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
   Future<void> requestUsageAccessPermission() async {
     if (Platform.isAndroid) {
-      try {
-        await platform.invokeMethod('requestUsageAccess');
-      } catch (e) {
-        print("Error requesting usage access: $e");
+      final isGranted = await platform.invokeMethod('requestUsageAccess');
+      if (!isGranted) {
+        print("Usage access permission denied.");
       }
     }
   }
+
 
   Future<void> requestPermissions() async {
     PermissionStatus locationPermission = await Permission.location.request();
@@ -267,7 +327,6 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
               'name': app.name,
               'timestamp': Timestamp.now(),
               'usageTime': 0,
-              'status': "Open"
             });
           }
         }
