@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:child_moni/AppBlocker.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:installed_apps/app_info.dart';
@@ -12,6 +13,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ChildHomeScreen extends StatefulWidget {
   final String childDocId;
@@ -23,6 +25,7 @@ class ChildHomeScreen extends StatefulWidget {
 }
 
 class _ChildHomeScreenState extends State<ChildHomeScreen> {
+
   late GoogleMapController _controller;
   String userEmail = "Loading...";
   List<AppInfo> installedApps = [];
@@ -32,6 +35,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   String? currentAppPackage;
   int usageTimeInSeconds = 0;
   static var platform = MethodChannel('com.example.app/foreground');
+  static const Otherplatform = MethodChannel('com.example.app/childId');
   Map<String, int> previousUsageTime = {};
   int currentPage = 0; // To keep track of the current page
   int appsPerPage = 5; // Number of apps per page
@@ -61,7 +65,36 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     requestUsageAccessPermission();
     listenToAppStatusUpdates();
     checkAndRequestOverlayPermission();
+    startAppBlockerService();
+    _setChildHomeScreenStatus(true);
+    saveCurrentChildId(widget.childDocId);
+    sendCurrentChildIdToKotlin(widget.childDocId);
   }
+  Future<void> sendCurrentChildIdToKotlin(String childDocId) async {
+    try {
+      await Otherplatform.invokeMethod('sendCurrentChildId', {'childDocId': childDocId});
+    } on PlatformException catch (e) {
+      print("Failed to send childId to Kotlin: ${e.message}");
+    }
+  }
+
+  Future<void> startAppBlockerService() async {
+    try {
+      await platform.invokeMethod('startAppBlockerService');
+      print("AppBlockerService started.");
+    } catch (e) {
+      print("Error starting AppBlockerService: $e");
+    }
+  }
+
+  Future<void> saveCurrentChildId(String childDocId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('currentChildId', childDocId);
+    print("Saved currentChildId: $childDocId");
+  }
+
+
+
   void goToNextPage() {
     setState(() {
       if (currentPage < (installedApps.length / appsPerPage).floor()) {
@@ -392,16 +425,33 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   }
 
 
-
+  // Method to communicate with Android through MethodChannel
+  Future<void> _setChildHomeScreenStatus(bool isInChildHomeScreen) async {
+    try {
+      await platform.invokeMethod('setChildHomeScreenStatus', {'isChildHomeScreen': isInChildHomeScreen});
+    } on PlatformException catch (e) {
+      print("Failed to set ChildHomeScreen status: '${e.message}'.");
+    }
+  }
 
 
 
 
   @override
   void dispose() {
+    _setChildHomeScreenStatus(false);
     super.dispose();
     if (isMonitoring) {
       timer.cancel();
+    }
+    stopAppBlockerService(); // Stop service when screen is closed
+  }
+  Future<void> stopAppBlockerService() async {
+    try {
+      await platform.invokeMethod('stopAppBlockerService');
+      print("AppBlockerService stopped.");
+    } catch (e) {
+      print("Error stopping AppBlockerService: $e");
     }
   }
 
@@ -418,6 +468,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppBlocker.startAppBlockerService();
     int startIndex = currentPage * appsPerPage;
     int endIndex = (currentPage + 1) * appsPerPage;
     List<AppInfo> currentAppsPage = installedApps.sublist(startIndex, endIndex > installedApps.length ? installedApps.length : endIndex);

@@ -1,9 +1,15 @@
 package com.example.child_moni
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.PixelFormat
+import com.google.firebase.auth.FirebaseAuth
+
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
@@ -11,6 +17,7 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.TextView
 import com.google.firebase.firestore.FirebaseFirestore
 
 class AppBlockerService : AccessibilityService() {
@@ -18,26 +25,60 @@ class AppBlockerService : AccessibilityService() {
     private var overlayContainer: FrameLayout? = null
     private val blockedApps = mutableListOf<String>()
     private val db = FirebaseFirestore.getInstance()
+    private var isOverlayVisible = false
+    private var currentBlockedApp: String? = null
+    private val handler = Handler(Looper.getMainLooper())
 
-    // Replace with dynamic user/child IDs if necessary
-    private val currentUserId = "JIXK9PEPxGfzKWY82FW10B65aai2"
-    private val currentChildId = "oSCgkyLO5aKmKAVH0rG7"
+    private lateinit var sharedPreferences: SharedPreferences
+    private var currentUserId: String? = null  // Now dynamic
+    private var currentChildId: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d("AppBlockerService", "Service connected")
 
-        fetchBlockedApps()
+        sharedPreferences = getSharedPreferences("child_moni_prefs", Context.MODE_PRIVATE)
+        currentChildId = sharedPreferences.getString("childDocId", null)
+
+        Log.d("AppBlockerService", "Fetched childDocId: $currentChildId")
+
+        // Fetch the dynamic current user ID
+        currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+        if (currentUserId == null) {
+            Log.e("AppBlockerService", "No user is logged in.")
+            return
+        }
+
+        Log.d("AppBlockerService", "Fetched currentUserId: $currentUserId")
+
+        if (currentChildId.isNullOrEmpty()) {
+            Log.e("AppBlockerService", "No childDocId found in SharedPreferences")
+            waitForChildDocIdAndFetchApps()
+        } else {
+            Log.d("AppBlockerService", "Fetched childDocId: $currentChildId")
+            fetchBlockedApps()
+        }
 
         if (!Settings.canDrawOverlays(this)) {
             Log.e("AppBlockerService", "Overlay permission not granted. Cannot show block screen.")
-        } else {
-            Log.d("AppBlockerService", "Overlay permission granted.")
         }
     }
 
+    private fun waitForChildDocIdAndFetchApps() {
+        if (currentChildId.isNullOrEmpty()) {
+            Log.e("AppBlockerService", "Waiting for $currentChildId")
+            handler.postDelayed({ waitForChildDocIdAndFetchApps() }, 1000)  // Retry every second
+        } else {
+            fetchBlockedApps()
+        }
+    }
 
     private fun fetchBlockedApps() {
+        if (currentChildId.isNullOrEmpty() || currentUserId.isNullOrEmpty()) {
+            Log.e("AppBlockerService", "Cannot fetch blocked apps, child ID or user ID is null.")
+            return
+        }
+
         val appsCollectionPath = "Parent/$currentUserId/Child/$currentChildId/InstalledApps"
 
         db.collection(appsCollectionPath)
@@ -63,32 +104,32 @@ class AppBlockerService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        val packageName = event.packageName?.toString() ?: "Unknown"
-        val eventType = when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "TYPE_WINDOW_STATE_CHANGED"
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> "TYPE_WINDOW_CONTENT_CHANGED"
-            else -> "OTHER_EVENT"
-        }
+        val eventType = event.eventType
 
-        Log.d("AppBlockerService", "Event detected: $eventType, Package: $packageName")
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val packageName = event.packageName?.toString()
 
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-        ) {
-            if (isAppBlocked(packageName)) {
-                Log.d("AppBlockerService", "Blocking app: $packageName")
-                showBlockScreen()
-            } else {
-                Log.d("AppBlockerService", "App is not blocked: $packageName")
-                removeOverlay()
+            if (packageName == "com.example.child_moni") {
+                Log.d("AppBlockerService", "Ignoring own app/service: $packageName")
+                return
             }
-        } else {
-            Log.d("AppBlockerService", "Ignored event type: ${event.eventType}, Package: $packageName")
+
+            if (isAppBlocked(packageName)) {
+                handler.removeCallbacksAndMessages(null)
+                handler.postDelayed({
+                    if (!isOverlayVisible || currentBlockedApp != packageName) {
+                        Log.d("AppBlockerService", "Blocking app: $packageName")
+                        currentBlockedApp = packageName
+                        showBlockScreen()
+                    }
+                }, 300)
+            } else if (currentBlockedApp != null && packageName != currentBlockedApp) {
+                Log.d("AppBlockerService", "Unblocked app detected: $packageName")
+                removeOverlay()
+                currentBlockedApp = null
+            }
         }
     }
-
-
-
 
 
     override fun onInterrupt() {
@@ -97,19 +138,15 @@ class AppBlockerService : AccessibilityService() {
 
     private fun isAppBlocked(packageName: String?): Boolean {
         if (packageName == null) return false
-
         val normalizedPackageName = packageName.trim().lowercase()
         val normalizedBlockedApps = blockedApps.map { it.trim().lowercase() }
-
         val isBlocked = normalizedBlockedApps.contains(normalizedPackageName)
         Log.d("AppBlockerService", "Checking if app is blocked: $packageName -> $isBlocked")
         return isBlocked
     }
 
-
-
     private fun showBlockScreen() {
-        if (overlayContainer != null) {
+        if (isOverlayVisible) {
             Log.d("AppBlockerService", "Overlay already displayed")
             return
         }
@@ -119,6 +156,19 @@ class AppBlockerService : AccessibilityService() {
         overlayContainer = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             alpha = 0.8f
+        }
+
+        val blockedText = TextView(this).apply {
+            text = "App is blocked"
+            setTextColor(Color.WHITE)
+            textSize = 24f
+            gravity = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER
+            }
         }
 
         val okButton = Button(this).apply {
@@ -132,9 +182,11 @@ class AppBlockerService : AccessibilityService() {
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.CENTER
+                topMargin = 100
             }
         }
 
+        overlayContainer?.addView(blockedText)
         overlayContainer?.addView(okButton)
 
         val params = WindowManager.LayoutParams(
@@ -147,20 +199,22 @@ class AppBlockerService : AccessibilityService() {
 
         try {
             windowManager.addView(overlayContainer, params)
+            isOverlayVisible = true
             Log.d("AppBlockerService", "Block screen displayed")
         } catch (e: Exception) {
             Log.e("AppBlockerService", "Error displaying overlay: ${e.message}")
         }
     }
 
-
-
     private fun removeOverlay() {
+        if (!isOverlayVisible) return
+
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         overlayContainer?.let {
             windowManager.removeView(it)
             overlayContainer = null
         }
+        isOverlayVisible = false
         Log.d("AppBlockerService", "Block screen overlay removed")
     }
 

@@ -20,8 +20,12 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.example.app/foreground"
+
+    private val CHANNEL = "com.example.app/foreground" // Update this to match with Flutter channel
+
+    private val APP_BLOCKER_CHANNEL = "com.example.child_moni/app_blocker"
     private val OVERLAY_PERMISSION_REQUEST_CODE = 1000
+    private val CHANNEL_CHILD = "com.example.app/childId"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,6 +38,64 @@ class MainActivity : FlutterActivity() {
         // Check accessibility service
         if (!isAccessibilityServiceEnabled(AppBlockerService::class.java)) {
             openAccessibilitySettings()
+        }
+    }
+
+    override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+
+        // Method channel for foreground app retrieval
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getForegroundApp" -> result.success(getForegroundApp())
+                "closeApp" -> {
+                    val packageName = call.argument<String>("packageName")
+                    if (packageName != null) {
+                        closeApp(packageName)
+                        result.success("App closed: $packageName")
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Package name is null", null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Method channel for starting the App Blocker Service
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_BLOCKER_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startAppBlockerService" -> {
+                    startAppBlockerService()
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Method channel for sending childDocId
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_CHILD).setMethodCallHandler { call, result ->
+            if (call.method == "sendCurrentChildId") {
+                val childDocId = call.argument<String>("childDocId")
+                if (childDocId != null) {
+                    // Use the childDocId as required (e.g., log it or store it)
+                    val sharedPreferences = getSharedPreferences("child_moni_prefs", Context.MODE_PRIVATE)
+                    val editor = sharedPreferences.edit()
+                    editor.putString("childDocId", childDocId)
+                    editor.apply()
+
+                    // Send broadcast to notify AppBlockerService
+                    val intent = Intent("com.example.child_moni.UPDATE_CHILD_DOC_ID")
+                    intent.putExtra("childDocId", childDocId)
+                    sendBroadcast(intent)
+
+                    Log.d("ChildHome", "Received childDocId: $childDocId")
+                    result.success(null)  // Send success response back to Flutter
+                } else {
+                    result.error("UNAVAILABLE", "ChildDocId not provided", null)
+                }
+            } else {
+                result.notImplemented()  // Handle unsupported method calls
+            }
         }
     }
 
@@ -76,26 +138,6 @@ class MainActivity : FlutterActivity() {
                 Toast.makeText(this, "Overlay permission granted", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "getForegroundApp" -> result.success(getForegroundApp())
-                "closeApp" -> {
-                    val packageName = call.argument<String>("packageName")
-                    if (packageName != null) {
-                        closeApp(packageName)
-                        result.success("App closed: $packageName")
-                    } else {
-                        result.error("INVALID_ARGUMENT", "Package name is null", null)
-                    }
-                }
-                else -> result.notImplemented()
             }
         }
     }
@@ -146,4 +188,10 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
+
+    private fun startAppBlockerService() {
+        val intent = Intent(this, AppBlockerService::class.java)
+        startService(intent)
+    }
+
 }

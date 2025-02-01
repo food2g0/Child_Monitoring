@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ChildPinScreen extends StatefulWidget {
   final String childDocId; // Pass the child document ID
@@ -53,16 +54,15 @@ class _ChildPinScreenState extends State<ChildPinScreen> {
         }
 
         final userId = currentUser.uid;
-
         print('current user: $userId');
         print('child docId: ${widget.childDocId}'); // Debugging
 
-        // Fetch the child's document based on the childDocId
+        // Fetch the child's document
         final childDoc = await FirebaseFirestore.instance
             .collection('Parent')
             .doc(userId)
             .collection('Child')
-            .doc(widget.childDocId) // Use the child document ID
+            .doc(widget.childDocId)
             .get();
 
         if (childDoc.exists) {
@@ -71,30 +71,33 @@ class _ChildPinScreenState extends State<ChildPinScreen> {
           print('Entered PIN: $enteredPin'); // Debugging
 
           if (storedPin.toString().trim() == enteredPin.trim()) {
-            // PIN is valid
+            // Save childDocId to SharedPreferences
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('childDocId', widget.childDocId);
+
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Pin validated. Proceeding...')),
             );
 
-            // Navigate to the next screen (e.g., child dashboard or main screen)
+            // Navigate to ChildHomeScreen
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => ChildHomeScreen(childDocId: widget.childDocId)),
+              MaterialPageRoute(
+                builder: (context) =>
+                    ChildHomeScreen(childDocId: widget.childDocId),
+              ),
             );
           } else {
-            // PIN is invalid
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Invalid PIN. Please try again.')),
             );
           }
         } else {
-          // No document found for the child
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Child data not found.')),
           );
         }
       } catch (e) {
-        // Handle errors
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${e.toString()}')),
         );
