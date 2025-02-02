@@ -14,6 +14,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart';
 
 class ChildHomeScreen extends StatefulWidget {
   final String childDocId;
@@ -39,6 +40,9 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   Map<String, int> previousUsageTime = {};
   int currentPage = 0; // To keep track of the current page
   int appsPerPage = 5; // Number of apps per page
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  Position? _currentPosition;
+  BitmapDescriptor? _customMarker;
 
   String formatDuration(int seconds) {
     int hours = seconds ~/ 3600;
@@ -69,7 +73,91 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     _setChildHomeScreenStatus(true);
     saveCurrentChildId(widget.childDocId);
     sendCurrentChildIdToKotlin(widget.childDocId);
+    _getCurrentLocation();
+    // _loadCustomMarker();
+
   }
+  Future<BitmapDescriptor> _getCustomMarker(double zoom) async {
+    double scale = zoom / 15.0; // Adjust the scale factor as needed
+    int newSize = (30 * scale).clamp(10, 100).toInt(); // Clamp between 10px and 100px
+
+    return await BitmapDescriptor.fromAssetImage(
+      ImageConfiguration(size: Size(newSize.toDouble(), newSize.toDouble())),
+      "assets/images/location_marker.png",
+    );
+  }
+
+  void _onCameraMove(CameraPosition position) async {
+    BitmapDescriptor marker = await _getCustomMarker(position.zoom);
+    setState(() {
+      _customMarker = marker;
+    });
+  }
+
+  // void _loadCustomMarker() async {
+  //   _customMarker = await _getCustomMarker();
+  //   setState(() {});
+  // }
+
+  // void _onCameraMove(CameraPosition position) {
+  //   _updateMarkerSize(position.zoom);
+  // }
+
+
+
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      print("Location services are disabled.");
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        print("Location permissions are denied.");
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      print("Location permissions are permanently denied.");
+      return;
+    }
+
+    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    setState(() {
+      _currentPosition = position;
+      _controller.animateCamera(CameraUpdate.newLatLng(
+        LatLng(position.latitude, position.longitude),
+      ));
+    });
+    _uploadLocationToFirestore(position);
+  }
+
+  Future<void> _uploadLocationToFirestore(Position position) async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userId = user.uid;
+      await _firestore
+          .collection('Parent')
+          .doc(userId)
+          .collection('Child')
+          .doc(widget.childDocId)
+          .update({
+        'location': {'latitude': position.latitude, 'longitude': position.longitude},
+        'timestamp': Timestamp.now(),
+      });
+      print("Location updated in Firestore.");
+    }
+  }
+
+
   Future<void> sendCurrentChildIdToKotlin(String childDocId) async {
     try {
       await Otherplatform.invokeMethod('sendCurrentChildId', {'childDocId': childDocId});
@@ -537,19 +625,35 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 20),
-              const SizedBox(height: 20),
+
               const Text("Location", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               Container(
                 height: 200,
                 decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
                 child: GoogleMap(
-                  initialCameraPosition: _initialCameraPosition,
+                  onCameraMove: _onCameraMove,
+                  initialCameraPosition: CameraPosition(
+                    target: _currentPosition != null
+                        ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                        : LatLng(14.5995, 120.9842),
+                    zoom: 12.0,
+                  ),
                   onMapCreated: (GoogleMapController controller) {
                     _controller = controller;
                   },
+                  markers: _currentPosition != null
+                      ? {
+                    Marker(
+                      markerId: MarkerId("currentLocation"),
+                      position: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                      icon: _customMarker ?? BitmapDescriptor.defaultMarker,
+                      infoWindow: InfoWindow(title: "Your Location"),
+                    )
+                  }
+                      : {},
                 ),
+
               ),
               const SizedBox(height: 20),
               const Text("Installed Apps", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),

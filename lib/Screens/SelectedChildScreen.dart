@@ -1,3 +1,4 @@
+import 'package:child_moni/Screens/Parent_AppLimit.dart';
 import 'package:child_moni/Screens/blockScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -159,7 +160,7 @@ class _SelectedChildScreenState extends State<SelectedChildScreen> {
                       ),
                       ElevatedButton(
                         onPressed: () {
-                          // Handle App Limits functionality
+                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (c)=> AppLimit(childId: widget.childId,)));
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orangeAccent,
