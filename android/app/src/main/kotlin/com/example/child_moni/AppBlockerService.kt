@@ -206,7 +206,7 @@ class AppBlockerService : AccessibilityService() {
         // Create a new timer
         val timer = object : CountDownTimer((timeLimit * 1000).toLong(), 1000) {
             override fun onTick(millisUntilFinished: Long) {
-                // Update the time limit every second
+
                 appTimeLimits[packageName] = (millisUntilFinished / 1000).toInt()
                 Log.d("AppBlockerService", "Time left for $packageName: ${appTimeLimits[packageName]} seconds")
             }

@@ -25,13 +25,12 @@ class _ChildScreenState extends State<ChildScreen> {
           .collection('Parent')
           .doc(userId)
           .collection('Child')
-          .orderBy('createdAt', descending: true) // Optional: Order by creation time
+          .orderBy('createdAt', descending: true)
           .get();
 
-      // Map documents to a list of child data, including document ID
       return snapshot.docs
           .map((doc) {
-        // Print the document ID here
+
         print('Child Document ID: ${doc.id}'); // Print the doc ID
         return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
       })
@@ -91,11 +90,10 @@ class _ChildScreenState extends State<ChildScreen> {
                   ),
                   subtitle: Text('Age: ${child['age'] ?? 'N/A'}'),
                   onTap: () {
-                    // Print the document ID when the child is tapped
+
                     print('Tapped on Child with Document ID: ${child['id']}'); // Print doc ID
 
-                    // Pass the document ID (child['id']) to the ChildDetailScreen
-                    // Inside your ChildScreen widget
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(
