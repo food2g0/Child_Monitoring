@@ -189,13 +189,17 @@ class AppBlockerService : AccessibilityService() {
         Log.d("AppBlockerService", "Checking if app is blocked: $packageName -> $isBlocked")
         return isBlocked
     }
-    // Declare appTimers as mutable map with nullable CountDownTimer values
-    // CountDownTimer? to allow nulls
 
     private fun startAppTimer(packageName: String, timeLimit: Int) {
+        // If the app is already blocked, do not start the timer
+        if (isAppBlocked(packageName)) {
+            Log.d("AppBlockerService", "Skipping timer for $packageName as it is already blocked")
+            return
+        }
+
         // Only restart the timer if it has already finished or if the time limit has changed
         val existingTimer = appTimers[packageName]
-        if (existingTimer != null && existingTimer is CountDownTimer) {
+        if (existingTimer != null) {
             // Timer is already running, don't restart it
             return
         }
@@ -206,7 +210,7 @@ class AppBlockerService : AccessibilityService() {
         // Create a new timer
         val timer = object : CountDownTimer((timeLimit * 1000).toLong(), 1000) {
             override fun onTick(millisUntilFinished: Long) {
-
+                // Update the time limit every second
                 appTimeLimits[packageName] = (millisUntilFinished / 1000).toInt()
                 Log.d("AppBlockerService", "Time left for $packageName: ${appTimeLimits[packageName]} seconds")
             }
@@ -228,7 +232,6 @@ class AppBlockerService : AccessibilityService() {
         timer.start()
         appTimers[packageName] = timer
     }
-
     // Function to update the "isBlocked" field in Firestore
     private fun updateAppBlockedStatus(packageName: String) {
         if (currentChildId.isNullOrEmpty() || currentUserId.isNullOrEmpty()) {
