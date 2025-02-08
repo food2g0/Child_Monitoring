@@ -1,5 +1,6 @@
 import 'package:child_moni/Screens/ChooseScreen.dart';
 import 'package:child_moni/Screens/HomeScreen.dart';
+import 'package:child_moni/api/firebase_api.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await FirebaseApi().initNotification();
 
   // Run the app
   runApp(const MyApp());

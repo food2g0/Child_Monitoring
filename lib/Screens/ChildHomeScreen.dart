@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:child_moni/AppBlocker.dart';
+import 'package:child_moni/api/firebase_api.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:installed_apps/app_info.dart';
@@ -15,6 +17,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
+
+
 
 class ChildHomeScreen extends StatefulWidget {
   final String childDocId;
@@ -32,7 +36,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   List<AppInfo> installedApps = [];
   late DateTime startTime;
   late DateTime endTime;
-  late Timer timer;
+
   String? currentAppPackage;
   int usageTimeInSeconds = 0;
   static var platform = MethodChannel('com.example.app/foreground');
@@ -51,6 +55,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
     return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
+
 
 
   static const CameraPosition _initialCameraPosition = CameraPosition(
@@ -385,41 +390,49 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
 
 
-
-
-
+  String? lastApp; // Persistent variable
+  Timer? timer;
 
   void startTrackingAppUsage() {
     setState(() {
       isMonitoring = true;
-      // Initialize usageTimeInSeconds to the stored value if it exists
-      usageTimeInSeconds = previousUsageTime[currentAppPackage] ?? 0;
     });
 
-    startTime = DateTime.now();
-    DateTime lastUpdateTime = DateTime.now();
+    startTime = DateTime.now(); // Set initial time
+    print("🚀 Timer started at ${startTime.toIso8601String()}");
 
     timer = Timer.periodic(const Duration(seconds: 5), (Timer t) async {
       try {
         final String? foregroundApp = await platform.invokeMethod('getForegroundApp');
+        print("🔍 Foreground App: $foregroundApp");
 
         if (foregroundApp != null && installedApps.any((app) => app.packageName == foregroundApp)) {
-          final elapsedTime = DateTime.now().difference(startTime).inSeconds;
+          if (lastApp != null && lastApp != foregroundApp) {
+            int elapsedTime = DateTime.now().difference(startTime).inSeconds;
+            updateAppUsageTime(lastApp!, elapsedTime);
+            print("📌 Switched app: $lastApp → $foregroundApp (Usage: $elapsedTime sec)");
+
+            startTime = DateTime.now(); // Reset timer for new app
+          }
+
+          lastApp = foregroundApp; // Update last app
+
+          // Update UI with correct time
           setState(() {
+            int elapsedTime = DateTime.now().difference(startTime).inSeconds;
             usageTimeInSeconds = elapsedTime;
           });
 
-          if (DateTime.now().difference(lastUpdateTime).inSeconds >= 10) {
-            updateAppUsageTime(foregroundApp, usageTimeInSeconds);
-            lastUpdateTime = DateTime.now();
-          }
+          print("⏳ Tracking $foregroundApp (Elapsed: $usageTimeInSeconds sec)");
         }
       } catch (e) {
-        print("Error checking foreground app: $e");
+        print("❌ Error checking foreground app: $e");
       }
     });
-
   }
+
+
+
 
 
 
@@ -460,63 +473,70 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   Future<void> updateAppUsageTime(String packageName, int elapsedTime) async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final userId = user.uid;
-        final appsCollection = FirebaseFirestore.instance
-            .collection('Parent')
-            .doc(userId)
-            .collection('Child')
-            .doc(widget.childDocId) // Pass the child document ID
-            .collection('InstalledApps');
-
-        // Find the document for the app with the matching package name
-        final appDoc = await appsCollection
-            .where('packageName', isEqualTo: packageName)
-            .limit(1)
-            .get();
-
-        if (appDoc.docs.isNotEmpty) {
-          final docRef = appDoc.docs.first.reference;
-
-          // Get the current usage time and last update timestamp from Firestore
-          final currentDoc = await docRef.get();
-          final currentUsageTime = currentDoc.data()?['usageTime'] ?? 0;
-          final lastUpdateTimestamp = currentDoc.data()?['lastUpdateTimestamp']?.toDate();
-
-          // If no timestamp exists, initialize it
-          final currentTimestamp = DateTime.now();
-
-          // If the last update timestamp exists, calculate the elapsed time since the last update
-          if (lastUpdateTimestamp != null) {
-            final timeDifference = currentTimestamp.difference(lastUpdateTimestamp).inSeconds;
-            setState(() {
-              usageTimeInSeconds = currentUsageTime + timeDifference; // Add the time difference
-            });
-          } else {
-            setState(() {
-              usageTimeInSeconds = currentUsageTime;
-            });
-          }
-
-          // Update Firestore with the new usage time and timestamp
-          await docRef.update({
-            'usageTime': usageTimeInSeconds, // Update total usage time
-            'lastUpdateTimestamp': currentTimestamp, // Update the last update timestamp
-          });
-
-          print("Updated usage time for app: $packageName, Time: $usageTimeInSeconds seconds");
-        }
+      if (user == null) {
+        print("❌ No authenticated user.");
+        return;
       }
+
+      final userId = user.uid;
+      final appsCollection = FirebaseFirestore.instance
+          .collection('Parent')
+          .doc(userId)
+          .collection('Child')
+          .doc(widget.childDocId)
+          .collection('InstalledApps');
+
+      print("🔍 Searching for package: $packageName in Firestore...");
+
+      final appDoc = await appsCollection.where('packageName', isEqualTo: packageName).limit(1).get();
+
+      if (appDoc.docs.isEmpty) {
+        print("❌ No matching document for package: $packageName");
+        return;
+      }
+
+      final docRef = appDoc.docs.first.reference;
+      final currentDoc = await docRef.get();
+
+      if (!currentDoc.exists) {
+        print("❌ Document exists in query but Firestore has no data.");
+        return;
+      }
+
+      // Extract current usage time
+      final int currentUsageTime = currentDoc.data()?['usageTime'] ?? 0;
+      final DateTime? lastUpdateTimestamp = currentDoc.data()?['lastUpdateTimestamp']?.toDate();
+      final DateTime currentTimestamp = DateTime.now();
+
+      print("⏳ Firestore Data - Current Usage: $currentUsageTime sec, Last Update: $lastUpdateTimestamp");
+
+      int updatedUsageTime = currentUsageTime + elapsedTime;
+
+      print("📈 Updating Firestore → New Usage Time: $updatedUsageTime sec");
+
+      // Attempt to update Firestore
+      await docRef.update({
+        'usageTime': updatedUsageTime,
+        'lastUpdateTimestamp': currentTimestamp,
+      }).then((_) {
+        print("✅ Firestore update successful!");
+      }).catchError((error) {
+        print("❌ Firestore update failed: $error");
+      });
+
     } catch (e) {
-      print("Error updating app usage time: $e");
+      print("❌ Error updating Firestore: $e");
     }
   }
+
+
 
 
   // Method to communicate with Android through MethodChannel
   Future<void> _setChildHomeScreenStatus(bool isInChildHomeScreen) async {
     try {
       await platform.invokeMethod('setChildHomeScreenStatus', {'isChildHomeScreen': isInChildHomeScreen});
+
     } on PlatformException catch (e) {
       print("Failed to set ChildHomeScreen status: '${e.message}'.");
     }
@@ -530,7 +550,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     _setChildHomeScreenStatus(false);
     super.dispose();
     if (isMonitoring) {
-      timer.cancel();
+      timer?.cancel();
     }
     stopAppBlockerService(); // Stop service when screen is closed
   }
@@ -686,5 +706,9 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         ),
       ),
     );
+
   }
+
+
 }
+

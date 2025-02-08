@@ -9,11 +9,6 @@ import android.graphics.PixelFormat
 import com.google.firebase.auth.FirebaseAuth
 import android.os.CountDownTimer
 import android.os.Handler
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
@@ -37,7 +32,6 @@ class AppBlockerService : AccessibilityService() {
     private var currentBlockedApp: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private val appTimers = mutableMapOf<String, CountDownTimer?>() // Allow null values for timers
-
     private lateinit var sharedPreferences: SharedPreferences
     private var currentUserId: String? = null  // Now dynamic
     private var currentChildId: String? = null
@@ -191,7 +185,7 @@ class AppBlockerService : AccessibilityService() {
     }
 
     private fun startAppTimer(packageName: String, timeLimit: Int) {
-        // If the app is already blocked, do not start the timer
+
         if (isAppBlocked(packageName)) {
             Log.d("AppBlockerService", "Skipping timer for $packageName as it is already blocked")
             return
@@ -340,18 +334,21 @@ class AppBlockerService : AccessibilityService() {
                             if (isBlocked) {
                                 blockedApps.add(packageName)
                             }
-
-                            // Start the timer immediately if the app is in the foreground
-                            if (isAppInForeground(packageName)) {
-                                startAppTimer(packageName, timeLimit)
-                            }
                         }
                     }
 
-                    Log.d("AppBlockerService", "Updated app list and timers in real-time")
+                    // Immediately check if the currently running app is now blocked
+                    currentForegroundApp?.let { activeApp ->
+                        if (isAppBlocked(activeApp)) {
+                            showBlockScreen() // Block the app immediately
+                        }
+                    }
+
+                    Log.d("AppBlockerService", "Updated blocked apps in real-time")
                 }
             }
     }
+
 
     private fun showBlockScreen() {
         if (isOverlayVisible) {
@@ -430,6 +427,17 @@ class AppBlockerService : AccessibilityService() {
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         startActivity(intent)
     }
+//    private fun startForegroundChecker() {
+//        handler.postDelayed(object : Runnable {
+//            override fun run() {
+//                if (currentForegroundApp != null && isAppBlocked(currentForegroundApp!!)) {
+//                    showBlockScreen()
+//                }
+//                handler.postDelayed(this, 1000) // Check every second
+//            }
+//        }, 1000)
+//    }
+
 
     override fun onInterrupt() {
         // Handle the case when the service is interrupted (e.g., when the user disables it)

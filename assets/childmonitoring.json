@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "childmonitoring-ae6b5",
+  "private_key_id": "a9e5bc424d48ccec2481efd98585a417c1deb729",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDN11s8Rs1U/uNU\nbBMefJM8xypSIlWPAOo7nNmTS3Eo/zSTXPEDdZ5xNtTEXXRzZYItlf/o2/HxM1wD\nGcIQKymHsyD/GNmRU19rWRNOmIFaMeBn0ZDaz5Q98GvxeKPKHaz4N5otbuxBfKzm\nXfDfjS1GDf+iWmaBDWNz5GDffIMA0/ObjP6ip0cfS8pXzN+k+c1mmwd3AwNFxsCR\ntAuqIaGk4GCckcg88Fu6r9p0zzwh3FeNp/qn3UO0B+RE+sH0numoGeZvAFEZVHwj\n/TFTKAKEYll/JovEhapihQ6NNdlyk9ci0HuSpsORM4QlslOPrljIBCSXsanXBH1T\nmS0cXnWnAgMBAAECggEAEpGS0WUxsLEtoLf/IYjrX1g4ISCnxza16prDpd3wX1pm\nS8TemQlLObtQhkZH8wD9NU+Kvl7Y/IE9k6oHL541KOCn4VtEhS+YM/7dFwH66UAG\nllb5UkPXg57knevcGqeCqwGZDvAqr92nW0CuMfxyUReCMAsnpAypJBM+CesZhkFv\nFQ6jQ9SxBtgz1R5hsDMP1GvSMtkvf7qWgx1qntTSWuTLuVAUjIxS7TmdHIqQs9Z+\nAkuoZG7cAmKSizyHgplLtALnksMId17M8+eKtm43dyYiEbuoJmUIld4C5GXI9DPE\nYStiGwWwrMa2cSNFHwlxY/CyLl+hhozQzIIoVjP0wQKBgQDoVDmPcjG7aAfF77Dw\nGYHt2btky1jW9QRMgwqUGV1BjLPbBnIQ436aFMYuUpiRpRdATlTjlU50Hg82ruev\nzAyOtD8BpPI5VJb0y5z/htOK3iUWbmNmPaJx9QNaEJP+7ZYcuhEv4CxSHh35NBxq\n0Fa8HOYcoHruB++HuPVVX7ogtQKBgQDi0EIZhKPBQccxNciAaEZVsyrd9wlV2Haq\nMoTYYKPC1bL9hxA4XIY3tU4IA2WNHIBrvQAuRz7FI7dWuy5Rlwr7HMrNrjqj9k8u\ni8v9OyRoLMCACkdlLaJ8MwYAl/g5soNrNocI6IcZszKAjsiPnn68/41PtrPLIUD7\nb46AbMfiawKBgQCd9j4YoOzdXdMDKoAkD0O/Ay4dTwD9TiP5HZPAtCoq2k6jGZPO\nlc7LVlqUvkXLqPLRHzEqd6aa3qE7bdpLNbJICJdaN9sVTcVBdXsuZW5JWdbflHhy\n2G8tiggYYXMufj11FLGA2qtnveBlQqAbo8GFLyTpy9cpJi4fGot725VCjQKBgAk2\neFjdAGHLMDIZgylkEudMPcOCU0i/YCKNpsO7OSuizoBpygjgCTueC6tbp/ZRYA4A\nQU+f6TbMupe1Rq5duj507u/n0c3zJUg4uXJxworQtoj84eWEMwNkdyvzAEwnqhri\nvh1ohIRQuQ5rvk3HHFLE9pJ0U10+3orX/yvMP1o9AoGBAIs9cYUgtOcCNoCat2AP\nhmaouQKel3xh+GWAwzaNGmjg2tkAwLCauqQEFOA9InYeKT0gRLR8wzyeFAjwYHY9\n+mp19zMGulqbgcKgSlMYEZGFdAxXKYIYmXzuxk44HUwUbD/NZyyjYjAoW0dtfk7Y\ninBLjj50+P14YR4vQqfAPVC4\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-78y0t@childmonitoring-ae6b5.iam.gserviceaccount.com",
+  "client_id": "111131893970001727824",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-78y0t%40childmonitoring-ae6b5.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

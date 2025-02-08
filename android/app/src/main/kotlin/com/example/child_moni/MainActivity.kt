@@ -17,15 +17,16 @@ import android.widget.Toast
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugins.GeneratedPluginRegistrant
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 
-    private val CHANNEL = "com.example.app/foreground" // Update this to match with Flutter channel
-
+    private val CHANNEL = "com.example.app/foreground"
     private val APP_BLOCKER_CHANNEL = "com.example.child_moni/app_blocker"
     private val OVERLAY_PERMISSION_REQUEST_CODE = 1000
     private val CHANNEL_CHILD = "com.example.app/childId"
+    private val OVERLAY_CHANNEL = "com.example.app/overlay"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,8 +44,9 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        GeneratedPluginRegistrant.registerWith(flutterEngine)
 
-        // Method channel for foreground app retrieval
+        // Foreground app retrieval & App closing
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "getForegroundApp" -> result.success(getForegroundApp())
@@ -61,7 +63,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // Method channel for starting the App Blocker Service
+        // App Blocker Service
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_BLOCKER_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startAppBlockerService" -> {
@@ -72,29 +74,41 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // Method channel for sending childDocId
+        // Overlay Permission Check
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, OVERLAY_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "checkOverlayPermission" -> {
+                    result.success(Settings.canDrawOverlays(this))
+                }
+                "requestOverlayPermission" -> {
+                    requestOverlayPermission()
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Child ID Method Channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL_CHILD).setMethodCallHandler { call, result ->
             if (call.method == "sendCurrentChildId") {
                 val childDocId = call.argument<String>("childDocId")
                 if (childDocId != null) {
-                    // Use the childDocId as required (e.g., log it or store it)
                     val sharedPreferences = getSharedPreferences("child_moni_prefs", Context.MODE_PRIVATE)
                     val editor = sharedPreferences.edit()
                     editor.putString("childDocId", childDocId)
                     editor.apply()
 
-                    // Send broadcast to notify AppBlockerService
                     val intent = Intent("com.example.child_moni.UPDATE_CHILD_DOC_ID")
                     intent.putExtra("childDocId", childDocId)
                     sendBroadcast(intent)
 
                     Log.d("ChildHome", "Received childDocId: $childDocId")
-                    result.success(null)  // Send success response back to Flutter
+                    result.success(null)
                 } else {
                     result.error("UNAVAILABLE", "ChildDocId not provided", null)
                 }
             } else {
-                result.notImplemented()  // Handle unsupported method calls
+                result.notImplemented()
             }
         }
     }
@@ -193,5 +207,4 @@ class MainActivity : FlutterActivity() {
         val intent = Intent(this, AppBlockerService::class.java)
         startService(intent)
     }
-
 }
