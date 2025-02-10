@@ -1,5 +1,6 @@
 import 'package:child_moni/Authentication/login.dart';
 import 'package:child_moni/Screens/AddChildScreen.dart';
+import 'package:child_moni/Screens/ContactUsScreen.dart';
 import 'package:child_moni/Screens/SelectedChildScreen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -15,11 +16,11 @@ class MyFamilyScreen extends StatefulWidget {
 
 class _MyFamilyScreenState extends State<MyFamilyScreen> {
   late GoogleMapController _controller;
-  String userEmail = "Loading..."; // Placeholder email
-  List<Map<String, dynamic>> children = []; // List to store children data\
+  String userEmail = "Loading...";
+  List<Map<String, dynamic>> children = [];
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-
+  Set<Marker> _markers = {}; // Store child location markers
   // Initial camera position
   static const CameraPosition _initialCameraPosition = CameraPosition(
     target: LatLng(14.5995, 120.9842), // Replace with desired coordinates
@@ -84,12 +85,72 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
           return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
         }).toList();
       });
+      _updateMarkers();
     } catch (e) {
       debugPrint('Error fetching children: $e');
     }
   }
 
+  Future<void> _updateMarkers() async {
+    Set<Marker> newMarkers = {};
+    BitmapDescriptor customMarker = await _getCustomMarker();
 
+    for (var child in children) {
+      if (child['location'] != null) {
+        final location = child['location'];
+        final LatLng position = LatLng(location['latitude'], location['longitude']);
+
+        newMarkers.add(
+          Marker(
+            markerId: MarkerId(child['id']),
+            position: position,
+            icon: customMarker,  // Use custom marker here
+            infoWindow: InfoWindow(title: child['name'] ?? "Unknown Child"),
+          ),
+        );
+      }
+    }
+
+    setState(() {
+      _markers = newMarkers;
+    });
+    // Move camera to first child's location
+    if (children.isNotEmpty && _controller != null) {
+      final firstChildLocation = children.first['location'];
+      if (firstChildLocation != null) {
+        _controller!.animateCamera(
+          CameraUpdate.newLatLng(
+            LatLng(firstChildLocation['latitude'], firstChildLocation['longitude']),
+          ),
+        );
+      }
+    }
+  }
+  Future<BitmapDescriptor> _getCustomMarker() async {
+    return await BitmapDescriptor.fromAssetImage(
+      const ImageConfiguration(size: Size(48, 48)), // Set appropriate size
+      "assets/images/location_marker.png", // Replace with your actual image path
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchAppSessions(String childId) async {
+    try {
+      final QuerySnapshot snapshot = await _firestore
+          .collection('Parent')
+          .doc(_auth.currentUser!.uid)
+          .collection('Child')
+          .doc(childId)
+          .collection('AppSessions')
+          .get();
+      debugPrint('Fetched ${snapshot.docs.length} app sessions for child: $childId');
+
+      return snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+
+    } catch (e) {
+      debugPrint('Error fetching app sessions: $e');
+      return [];
+    }
+  }
 
 
 
@@ -111,266 +172,300 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "My Family",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFFFFC0CB),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              backgroundImage:
-              AssetImage("assets/images/onboarding.jpg"), // Replace with your image
-              backgroundColor: Colors.white,
+    return new WillPopScope(
+      onWillPop: () async => false,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            "My Family",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
             ),
           ),
-        ],
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFC0CB),
+          centerTitle: true,
+          backgroundColor: const Color(0xFFFFC0CB),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: CircleAvatar(
+                backgroundImage:
+                AssetImage("assets/images/onboarding.jpg"), // Replace with your image
+                backgroundColor: Colors.white,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const CircleAvatar(
-                    radius: 30,
-                    backgroundImage: AssetImage("assets/images/onboarding.jpg"), // Replace with user image
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    "Welcome, User",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    userEmail,
-                    style: const TextStyle(
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text("Home"),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text("Profile"),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.child_care),
-              title: const Text("Child Management"),
-              onTap: () {
-                Navigator.pushReplacement(context,
-                    MaterialPageRoute(builder: (context) => AddChildScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text("Logout"),
-              onTap: handleLogout, // Call the logout function
             ),
           ],
         ),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        drawer: Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
             children: [
-
-
-              const SizedBox(height: 10),
-
-              SizedBox(
-                height: 170, // Adjust the height for the container
+              DrawerHeader(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFC0CB),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Title Section
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text(
-                        "Your Children",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
+                    const CircleAvatar(
+                      radius: 30,
+                      backgroundImage: AssetImage("assets/images/onboarding.jpg"), // Replace with user image
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      "Welcome, User",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
-
-                    // Container with background color DAECF2
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16.0),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDAECF2), // Light blue background color
-                          borderRadius: BorderRadius.circular(12), // Rounded corners
-                        ),
-                        child: children.isEmpty
-                            ? const Center(
-                          child: CircularProgressIndicator(), // Show a loader while data is loading
-                        )
-                            :  ListView.builder(
-                          scrollDirection: Axis.horizontal, // Horizontal scrolling
-                          itemCount: children.length + 1, // Extra item for the "Add Child" button
-                          itemBuilder: (context, index) {
-                            if (index == 0) {
-                              // "Add Child" Button at the beginning
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                                child: InkWell(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AddChildScreen(), // Navigate to AddChildScreen
-                                      ),
-                                    );
-                                  },
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 30,
-                                        backgroundColor: Colors.blueAccent,
-                                        child: const Icon(Icons.add, color: Colors.white), // Plus icon
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        "Add Child",
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.black87,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            } else {
-                              // Child Item
-                              final child = children[index - 1]; // Adjust index for children list
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                                child: InkWell(
-                                  onTap: () {
-                                    final childId = child['id'];
-
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            SelectedChildScreen(childId: childId),
-                                      ),
-                                    );
-                                  },
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 30,
-                                        backgroundImage: AssetImage("assets/images/onboarding.jpg"), // Replace with your image
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        child['name'] ?? 'Unknown',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.black87,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                        ),
+                    Text(
+                      userEmail,
+                      style: const TextStyle(
+                        color: Colors.white,
                       ),
                     ),
                   ],
                 ),
               ),
-
-
-
-              const SizedBox(height: 20),
-
-              // Location Section
-              const Text(
-                "Location",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+              ListTile(
+                leading: const Icon(Icons.home),
+                title: const Text("Home"),
+                onTap: () {
+                  Navigator.pop(context);
+                },
               ),
-              const SizedBox(height: 10),
-              Container(
-                height: 200,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: GoogleMap(
-                  initialCameraPosition: _initialCameraPosition,
-                  onMapCreated: (GoogleMapController controller) {
-                    _controller = controller;
-                  },
-                  mapType: MapType.normal,
-                  myLocationEnabled: true,
-                  zoomControlsEnabled: true,
-                ),
+              ListTile(
+                leading: const Icon(Icons.person),
+                title: const Text("Profile"),
+                onTap: () {
+                  Navigator.pop(context);
+                },
               ),
-              const SizedBox(height: 20),
-
-              // Activities Section
-              const Text(
-                "Activities",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+              ListTile(
+                leading: const Icon(Icons.child_care),
+                title: const Text("Child Management"),
+                onTap: () {
+                  Navigator.pushReplacement(context,
+                      MaterialPageRoute(builder: (context) => AddChildScreen()));
+                },
               ),
-              const SizedBox(height: 10),
-              ListView(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  activityItem("Facebook", Icons.facebook, Colors.blue),
-                  activityItem("Youtube", Icons.youtube_searched_for, Colors.red),
-                  activityItem("Tiktok", Icons.music_note, Colors.black),
-                  activityItem("Instagram", Icons.camera_alt, Colors.purple),
-                ],
+              ListTile(
+                leading: const Icon(Icons.contact_page),
+                title: const Text("Contact Us"),
+                onTap: () {
+                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=>ContactUsScreen()));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: const Text("Logout"),
+                onTap: handleLogout, // Call the logout function
               ),
             ],
+          ),
+        ),
+        body: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+
+                const SizedBox(height: 10),
+
+                SizedBox(
+                  height: 170, // Adjust the height for the container
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title Section
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          "Your Children",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+
+                      // Container with background color DAECF2
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(16.0),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDAECF2), // Light blue background color
+                            borderRadius: BorderRadius.circular(12), // Rounded corners
+                          ),
+                          child: children.isEmpty
+                              ? const Center(
+                            child: CircularProgressIndicator(), // Show a loader while data is loading
+                          )
+                              :  ListView.builder(
+                            scrollDirection: Axis.horizontal, // Horizontal scrolling
+                            itemCount: children.length + 1, // Extra item for the "Add Child" button
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                // "Add Child" Button at the beginning
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                  child: InkWell(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => AddChildScreen(), // Navigate to AddChildScreen
+                                        ),
+                                      );
+                                    },
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 30,
+                                          backgroundColor: Colors.blueAccent,
+                                          child: const Icon(Icons.add, color: Colors.white), // Plus icon
+                                        ),
+                                        const SizedBox(height: 8),
+                                        const Text(
+                                          "Add Child",
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.black87,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                // Child Item
+                                final child = children[index - 1]; // Adjust index for children list
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                  child: InkWell(
+                                    onTap: () {
+                                      final childId = child['id'];
+
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              SelectedChildScreen(childId: childId),
+                                        ),
+                                      );
+                                    },
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 30,
+                                          backgroundImage: AssetImage("assets/images/onboarding.jpg"), // Replace with your image
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          child['name'] ?? 'Unknown',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.black87,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+
+
+                const SizedBox(height: 20),
+
+                // Location Section
+                const Text(
+                  "Child Locations",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: GoogleMap(
+                    initialCameraPosition: _initialCameraPosition,
+                    onMapCreated: (GoogleMapController controller) {
+                      setState(() {
+                        _controller = controller;
+                      });
+                    },
+                    markers: _markers,
+                    mapType: MapType.normal,
+                    myLocationEnabled: true,
+                    zoomControlsEnabled: true,
+                    zoomGesturesEnabled: true, // Allows zooming
+                    scrollGesturesEnabled: true, // Allows moving
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Activities Section
+                const Text(
+                  "Reports",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                children.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    :
+                Column(
+                  children: children.map((child) {
+                    return FutureBuilder<List<Map<String, dynamic>>>(
+                      future: _fetchAppSessions(child['id']),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                          return ListTile(
+                            title: Text(child['name'] ?? 'Unknown'),
+                            subtitle: const Text("No app session data available"),
+                          );
+                        }
+                        return ExpansionTile(
+                          title: Text(child['name'] ?? 'Unknown'),
+                          children: snapshot.data!.map((session) {
+                            return ListTile(
+                              title: Text(session['packageName'] ?? 'Unknown App'),
+                              subtitle: Text("Duration: ${session['duration']} seconds"),
+                              trailing: Text("${session['status'] ?? 'Unknown Status'}"),
+                            );
+                          }).toList(),
+                        );
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
           ),
         ),
       ),

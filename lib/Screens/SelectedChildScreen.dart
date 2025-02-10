@@ -1,3 +1,4 @@
+import 'package:child_moni/Screens/GpsScreen.dart';
 import 'package:child_moni/Screens/Parent_AppLimit.dart';
 import 'package:child_moni/Screens/blockScreen.dart';
 import 'package:flutter/material.dart';
@@ -14,16 +15,15 @@ class SelectedChildScreen extends StatefulWidget {
 }
 
 class _SelectedChildScreenState extends State<SelectedChildScreen> {
-  late Future<List<Map<String, dynamic>>> installedAppsFuture;
   late Future<String?> childNameFuture;
 
   @override
   void initState() {
     super.initState();
-    installedAppsFuture = fetchInstalledApps(widget.childId);
     childNameFuture = fetchChildName(widget.childId);
   }
 
+  /// Fetch child's name from Firestore
   Future<String?> fetchChildName(String childId) async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
@@ -43,43 +43,37 @@ class _SelectedChildScreenState extends State<SelectedChildScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> fetchInstalledApps(String childId) async {
-    try {
-      final User? user = FirebaseAuth.instance.currentUser;
-      final userId = user?.uid;
+  /// Fetch installed apps as a Firestore stream (real-time updates)
+  Stream<List<Map<String, dynamic>>> fetchInstalledAppsStream(String childId) {
+    final User? user = FirebaseAuth.instance.currentUser;
+    final userId = user?.uid;
 
-      final QuerySnapshot<Map<String, dynamic>> querySnapshot = await FirebaseFirestore.instance
-          .collection('Parent')
-          .doc(userId)
-          .collection('Child')
-          .doc(childId)
-          .collection('InstalledApps')
-          .get();
-
+    return FirebaseFirestore.instance
+        .collection('Parent')
+        .doc(userId)
+        .collection('Child')
+        .doc(childId)
+        .collection('InstalledApps')
+        .snapshots()
+        .map((querySnapshot) {
       final apps = querySnapshot.docs.map((doc) {
         final data = doc.data();
         final usageTimeInSeconds = data['usageTime'] ?? 0;
 
-        // Format usageTime as hr:min:sec
-        final formattedUsageTime = formatDuration(Duration(seconds: usageTimeInSeconds));
-
         return {
           ...data,
-          'formattedUsageTime': formattedUsageTime, // Add formatted time
-          'usageTime': usageTimeInSeconds,         // Keep original for sorting
+          'formattedUsageTime': formatDuration(Duration(seconds: usageTimeInSeconds)), // Formatted time
+          'usageTime': usageTimeInSeconds, // Keep original for sorting
         };
       }).toList();
 
-      // Sort apps by usageTime in descending order
+      // Sort apps by usage time in descending order
       apps.sort((a, b) => b['usageTime'].compareTo(a['usageTime']));
-
       return apps;
-    } catch (e) {
-      debugPrint('Error fetching installed apps: $e');
-      return [];
-    }
+    });
   }
 
+  /// Convert seconds to HH:MM:SS format
   String formatDuration(Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
@@ -110,8 +104,8 @@ class _SelectedChildScreenState extends State<SelectedChildScreen> {
         ),
         centerTitle: true,
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: installedAppsFuture,
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: fetchInstalledAppsStream(widget.childId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -148,7 +142,8 @@ class _SelectedChildScreenState extends State<SelectedChildScreen> {
                     children: [
                       ElevatedButton(
                         onPressed: () {
-                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (c)=> BlockScreen(childId: widget.childId,)));
+                          Navigator.pushReplacement(
+                              context, MaterialPageRoute(builder: (c) => BlockScreen(childId: widget.childId)));
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.redAccent,
@@ -160,7 +155,8 @@ class _SelectedChildScreenState extends State<SelectedChildScreen> {
                       ),
                       ElevatedButton(
                         onPressed: () {
-                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (c)=> AppLimit(childId: widget.childId,)));
+                          Navigator.pushReplacement(
+                              context, MaterialPageRoute(builder: (c) => AppLimit(childId: widget.childId)));
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orangeAccent,
@@ -172,7 +168,7 @@ class _SelectedChildScreenState extends State<SelectedChildScreen> {
                       ),
                       ElevatedButton(
                         onPressed: () {
-                          // Handle GPS functionality
+                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=>Gpsscreen(childId: widget.childId)));
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
@@ -208,6 +204,7 @@ class _SelectedChildScreenState extends State<SelectedChildScreen> {
     );
   }
 
+  /// Builds the app usage tile
   Widget _buildActivityTile(String appName, String usage, IconData icon, Color iconColor) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),

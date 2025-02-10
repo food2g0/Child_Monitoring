@@ -99,17 +99,6 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     });
   }
 
-  // void _loadCustomMarker() async {
-  //   _customMarker = await _getCustomMarker();
-  //   setState(() {});
-  // }
-
-  // void _onCameraMove(CameraPosition position) {
-  //   _updateMarkerSize(position.zoom);
-  // }
-
-
-
 
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled;
@@ -398,7 +387,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       isMonitoring = true;
     });
 
-    startTime = DateTime.now(); // Set initial time
+    startTime = DateTime.now();
     print("🚀 Timer started at ${startTime.toIso8601String()}");
 
     timer = Timer.periodic(const Duration(seconds: 5), (Timer t) async {
@@ -408,16 +397,22 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
         if (foregroundApp != null && installedApps.any((app) => app.packageName == foregroundApp)) {
           if (lastApp != null && lastApp != foregroundApp) {
+            // Log the closed app
             int elapsedTime = DateTime.now().difference(startTime).inSeconds;
+            logAppSession(lastApp!, startTime, DateTime.now(), elapsedTime);
             updateAppUsageTime(lastApp!, elapsedTime);
             print("📌 Switched app: $lastApp → $foregroundApp (Usage: $elapsedTime sec)");
 
-            startTime = DateTime.now(); // Reset timer for new app
+            startTime = DateTime.now();
           }
 
-          lastApp = foregroundApp; // Update last app
+          // Log the new app opened
+          if (lastApp != foregroundApp) {
+            logAppOpened(foregroundApp);
+          }
 
-          // Update UI with correct time
+          lastApp = foregroundApp;
+
           setState(() {
             int elapsedTime = DateTime.now().difference(startTime).inSeconds;
             usageTimeInSeconds = elapsedTime;
@@ -432,7 +427,50 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   }
 
 
+  Future<void> logAppOpened(String packageName) async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
+    final userId = user.uid;
+    final sessionCollection = FirebaseFirestore.instance
+        .collection('Parent')
+        .doc(userId)
+        .collection('Child')
+        .doc(widget.childDocId)
+        .collection('AppSessions');
+
+    await sessionCollection.add({
+      'packageName': packageName,
+      'startTime': Timestamp.now(),
+      'status': 'opened', // Just to mark the event
+    });
+
+    print("📂 Logged app opened: $packageName");
+  }
+
+
+  Future<void> logAppSession(String packageName, DateTime start, DateTime end, int duration) async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final userId = user.uid;
+    final sessionCollection = FirebaseFirestore.instance
+        .collection('Parent')
+        .doc(userId)
+        .collection('Child')
+        .doc(widget.childDocId)
+        .collection('AppSessions');
+
+    await sessionCollection.add({
+      'packageName': packageName,
+      'startTime': Timestamp.fromDate(start),
+      'endTime': Timestamp.fromDate(end),
+      'duration': duration,
+      'status': 'closed',
+    });
+
+    print("📂 Logged app closed: $packageName | Duration: $duration sec");
+  }
 
 
 
