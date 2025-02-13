@@ -94,7 +94,7 @@ class AppBlockerService : AccessibilityService() {
 
         val appsCollectionPath = "Parent/$currentUserId/Child/$currentChildId/InstalledApps"
 
-        // Fetch all apps with a timeLimit greater than 0
+        // Fetch all apps from Firestore
         db.collection(appsCollectionPath)
             .get()
             .addOnSuccessListener { documents ->
@@ -107,18 +107,18 @@ class AppBlockerService : AccessibilityService() {
                     val isBlocked = doc.getBoolean("isBlocked") ?: false
 
                     if (!packageName.isNullOrEmpty()) {
-                        // Add the app to the time limits map
+                        // Only add to the time limits map if the time limit is greater than 0
                         if (timeLimit > 0) {
                             appTimeLimits[packageName] = timeLimit
                         }
 
-                        // If the app is blocked, add to the blocked list
+                        // Only add to the blocked list if "isBlocked" is true
                         if (isBlocked) {
                             blockedApps.add(packageName)
                         }
 
-                        // Immediately trigger the timer if the app is in the foreground
-                        if (isAppInForeground(packageName)) {
+                        // Immediately start the timer if the app is in the foreground and has a valid time limit
+                        if (isAppInForeground(packageName) && timeLimit > 0) {
                             startAppTimer(packageName, timeLimit)
                         }
                     }
@@ -128,6 +128,7 @@ class AppBlockerService : AccessibilityService() {
                 Log.e("AppBlockerService", "Failed to fetch apps: ${exception.message}")
             }
     }
+
 
 
     private fun isDontBlock(packageName: String): Boolean {
@@ -140,15 +141,14 @@ class AppBlockerService : AccessibilityService() {
     private fun handleBlockedApps(packageName: String?) {
         if (packageName.isNullOrEmpty()) return
 
-        // Skip blocking logic if the app is child_moni or marked as don't block
+        // Skip blocking logic if the app is child_moni or marked as "don't block"
         if (packageName == packageNameOfThisApp || isDontBlock(packageName)) {
             Log.d("AppBlockerService", "$packageName is not blocked (dontBlock is true or it's child_moni)")
             return
         }
 
-        // Check if the app is in the blocked list
+        // Only block the app if it's explicitly marked as "blocked"
         if (isAppBlocked(packageName)) {
-            // If blocked, show the block screen immediately
             showBlockScreen()
         }
     }
@@ -157,18 +157,16 @@ class AppBlockerService : AccessibilityService() {
     private fun handleTimeLimitApps(packageName: String?) {
         if (packageName.isNullOrEmpty()) return
 
-        // Check if the app has a time limit in the database
+        // Check if the app has a time limit and is in the foreground
         val appTimeLimit = appTimeLimits[packageName]
 
-        if (appTimeLimit != null) {
-            // If the app has a time limit, start a countdown timer immediately
-            if (isAppInForeground(packageName)) {
-                startAppTimer(packageName, appTimeLimit)
-            }
+        if (appTimeLimit != null && appTimeLimit > 0 && isAppInForeground(packageName)) {
+            startAppTimer(packageName, appTimeLimit)
         } else {
-            Log.d("AppBlockerService", "No time limit for app: $packageName")
+            Log.d("AppBlockerService", "App $packageName has no time limit or is not in foreground")
         }
     }
+
 
     private fun isAppInForeground(packageName: String): Boolean {
         // Compare the packageName with the app in the foreground

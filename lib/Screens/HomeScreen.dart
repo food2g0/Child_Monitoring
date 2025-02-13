@@ -17,11 +17,12 @@ class MyFamilyScreen extends StatefulWidget {
 class _MyFamilyScreenState extends State<MyFamilyScreen> {
   late GoogleMapController _controller;
   String userEmail = "Loading...";
+  bool _isLoading = true;
+  bool _hasFetchedChildren = false;
   List<Map<String, dynamic>> children = [];
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   Set<Marker> _markers = {}; // Store child location markers
-  // Initial camera position
   static const CameraPosition _initialCameraPosition = CameraPosition(
     target: LatLng(14.5995, 120.9842), // Replace with desired coordinates
     zoom: 12.0,
@@ -67,27 +68,31 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
   }
 
   Future<void> _fetchChildren() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       final String userId = _auth.currentUser!.uid;
-
-      // Fetch all documents in the "Child" sub-collection
       final QuerySnapshot snapshot = await _firestore
           .collection('Parent')
           .doc(userId)
           .collection('Child')
           .orderBy('createdAt', descending: true)
           .get();
-      print('Fetched children: ${snapshot.docs.map((doc) => doc.data())}');
 
-      // Map data and update the state
       setState(() {
         children = snapshot.docs.map((doc) {
           return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
         }).toList();
+        _hasFetchedChildren = true;
       });
-      _updateMarkers();
     } catch (e) {
       debugPrint('Error fetching children: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -301,11 +306,22 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                             color: const Color(0xFFDAECF2), // Light blue background color
                             borderRadius: BorderRadius.circular(12), // Rounded corners
                           ),
-                          child: children.isEmpty
+                          child: _isLoading
                               ? const Center(
-                            child: CircularProgressIndicator(), // Show a loader while data is loading
+                            child: CircularProgressIndicator(), // Show loader while data is loading
                           )
-                              :  ListView.builder(
+                              : children.isEmpty
+                              ? const Center(
+                            child: Text(
+                              "No children added yet.",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          )
+                              : ListView.builder(
                             scrollDirection: Axis.horizontal, // Horizontal scrolling
                             itemCount: children.length + 1, // Extra item for the "Add Child" button
                             itemBuilder: (context, index) {
@@ -356,8 +372,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (context) =>
-                                              SelectedChildScreen(childId: childId),
+                                          builder: (context) => SelectedChildScreen(childId: childId),
                                         ),
                                       );
                                     },
@@ -387,6 +402,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                           ),
                         ),
                       ),
+
                     ],
                   ),
                 ),
@@ -434,22 +450,40 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                 ),
                 const SizedBox(height: 10),
                 children.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    :
-                Column(
+                    ? const Center(child: Text("No children available.")) // Message for no children
+                    : Column(
                   children: children.map((child) {
                     return FutureBuilder<List<Map<String, dynamic>>>(
                       future: _fetchAppSessions(child['id']),
                       builder: (context, snapshot) {
+                        // Show loading indicator while waiting for data
                         if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                          return ListTile(
-                            title: Text(child['name'] ?? 'Unknown'),
-                            subtitle: const Text("No app session data available"),
+                          return const Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Center(child: CircularProgressIndicator()),
                           );
                         }
+
+                        // If there's an error, display an error message
+                        if (snapshot.hasError) {
+                          debugPrint("Error fetching app sessions: ${snapshot.error}");
+                          return ListTile(
+                            title: Text(child['name'] ?? 'Unknown'),
+                            subtitle: const Text("Error loading app session data."),
+                          );
+                        }
+
+                        // Check if data is empty
+                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                          debugPrint("No app sessions available for ${child['name']}");
+                          return ListTile(
+                            title: Text(child['name'] ?? 'Unknown'),
+                            subtitle: const Text("No app session data available."),
+                          );
+                        }
+
+                        // Data is available
+                        debugPrint("Displaying app sessions for ${child['name']}");
                         return ExpansionTile(
                           title: Text(child['name'] ?? 'Unknown'),
                           children: snapshot.data!.map((session) {
@@ -464,6 +498,8 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                     );
                   }).toList(),
                 ),
+
+
               ],
             ),
           ),

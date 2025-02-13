@@ -82,6 +82,8 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     // _loadCustomMarker();
 
   }
+
+
   Future<BitmapDescriptor> _getCustomMarker(double zoom) async {
     double scale = zoom / 15.0; // Adjust the scale factor as needed
     int newSize = (30 * scale).clamp(10, 100).toInt(); // Clamp between 10px and 100px
@@ -98,7 +100,6 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       _customMarker = marker;
     });
   }
-
 
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled;
@@ -325,6 +326,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
               'com.android.messaging',
               'com.google.android.gm',
             ];
+
             return !systemAppPackages.contains(app.packageName);
           }).toList();
 
@@ -355,7 +357,9 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
                     installedApps.sort((a, b) {
                       int timeA = previousUsageTime[a.packageName] ?? 0;
                       int timeB = previousUsageTime[b.packageName] ?? 0;
-                      return timeB.compareTo(timeA); // Sort in descending order
+                      return timeB.compareTo(timeA);
+                      // Sort in descending order
+
                     });
                   });
                 }
@@ -412,6 +416,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
           }
 
           lastApp = foregroundApp;
+
 
           setState(() {
             int elapsedTime = DateTime.now().difference(startTime).inSeconds;
@@ -499,6 +504,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
               'name': app.name,
               'timestamp': Timestamp.now(),
               'usageTime': 0,
+              'isBlocked': false, // Add the isBlocked field
             });
           }
         }
@@ -507,6 +513,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       print("Error uploading installed apps: $e");
     }
   }
+
 
   Future<void> updateAppUsageTime(String packageName, int elapsedTime) async {
     try {

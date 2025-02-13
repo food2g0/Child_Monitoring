@@ -21,7 +21,7 @@ class FirebaseApi {
     if (fcmToken != null) {
       print('FCM Token: $fcmToken');
 
-      // Get current child ID from SharedPreferences
+
       String? currentChildId = await getCurrentChildId();
 
       if (currentChildId != null) {

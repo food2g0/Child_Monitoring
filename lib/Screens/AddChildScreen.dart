@@ -54,13 +54,14 @@ class _AddChildScreenState extends State<AddChildScreen> {
       await parentDocRef.collection('Child').add({
         'name': name,
         'age': int.parse(age),
-        'pin': int.parse(pin),
+        'pin': pin,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       // Clear the input fields after successful addition
       _nameController.clear();
       _ageController.clear();
+      _pinController.clear();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Child added successfully')),
