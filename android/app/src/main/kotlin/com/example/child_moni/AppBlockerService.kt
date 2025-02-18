@@ -341,9 +341,15 @@ class AppBlockerService : AccessibilityService() {
                     }
 
                     Log.d("AppBlockerService", "Updated app list and timers in real-time")
+
+                    // Check if the current app is now blocked
+                    if (isAppBlocked(currentForegroundApp)) {
+                        showBlockScreen() // Immediately show the block screen
+                    }
                 }
             }
     }
+
 
     private fun showBlockScreen() {
         if (isOverlayVisible) {

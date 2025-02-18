@@ -1,6 +1,7 @@
 import 'package:child_moni/Authentication/login.dart';
 import 'package:child_moni/Screens/AddChildScreen.dart';
 import 'package:child_moni/Screens/ContactUsScreen.dart';
+import 'package:child_moni/Screens/ProfileScreen.dart';
 import 'package:child_moni/Screens/SelectedChildScreen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -33,19 +34,15 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
     super.initState();
     fetchUserEmailFromParentCollection();
     _fetchChildren();
+
   }
 
-  // Fetch the email of the current user from the parent collection in Firestore
   Future<void> fetchUserEmailFromParentCollection() async {
     try {
-      final User? user = FirebaseAuth.instance.currentUser;
+      final User? user = _auth.currentUser;
       if (user != null) {
-        final userId = user.uid; // Get the user ID
-        final DocumentSnapshot parentDoc = await FirebaseFirestore.instance
-            .collection('Parent')
-            .doc(userId)
-            .get();
-
+        final DocumentSnapshot parentDoc =
+        await _firestore.collection('Parent').doc(user.uid).get();
         if (parentDoc.exists) {
           setState(() {
             userEmail = parentDoc['email'] ?? "No Email Found";
@@ -82,11 +79,12 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
           .get();
 
       setState(() {
-        children = snapshot.docs.map((doc) {
-          return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
-        }).toList();
-        _hasFetchedChildren = true;
+        children = snapshot.docs
+            .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
+            .toList();
       });
+
+      _updateMarkers(); // Call the marker update after fetching children
     } catch (e) {
       debugPrint('Error fetching children: $e');
     } finally {
@@ -95,6 +93,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
       });
     }
   }
+
 
   Future<void> _updateMarkers() async {
     Set<Marker> newMarkers = {};
@@ -105,11 +104,13 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
         final location = child['location'];
         final LatLng position = LatLng(location['latitude'], location['longitude']);
 
+        print('Adding marker for child: ${child['name']} at $position');
+
         newMarkers.add(
           Marker(
             markerId: MarkerId(child['id']),
             position: position,
-            icon: customMarker,  // Use custom marker here
+            icon: customMarker,
             infoWindow: InfoWindow(title: child['name'] ?? "Unknown Child"),
           ),
         );
@@ -119,11 +120,12 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
     setState(() {
       _markers = newMarkers;
     });
-    // Move camera to first child's location
-    if (children.isNotEmpty && _controller != null) {
+
+    // Optionally move camera to the first child's location
+    if (children.isNotEmpty) {
       final firstChildLocation = children.first['location'];
       if (firstChildLocation != null) {
-        _controller!.animateCamera(
+        _controller.animateCamera(
           CameraUpdate.newLatLng(
             LatLng(firstChildLocation['latitude'], firstChildLocation['longitude']),
           ),
@@ -244,7 +246,8 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                 leading: const Icon(Icons.person),
                 title: const Text("Profile"),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pushReplacement(context,
+                      MaterialPageRoute(builder: (context) => ProfilePage()));
                 },
               ),
               ListTile(
