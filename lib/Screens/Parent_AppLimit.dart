@@ -15,6 +15,7 @@ class AppLimit extends StatefulWidget {
 
 class _AppLimitState extends State<AppLimit> {
   late Future<List<Map<String, dynamic>>> installedAppsFuture;
+  String searchQuery = "";
 
   @override
   void initState() {
@@ -35,12 +36,15 @@ class _AppLimitState extends State<AppLimit> {
           .collection('InstalledApps')
           .get();
 
-      return querySnapshot.docs.map((doc) {
+      List<Map<String, dynamic>> apps = querySnapshot.docs.map((doc) {
         return {
-          'id': doc.id, // App document ID for updates
+          'id': doc.id,
           ...doc.data(),
         };
       }).toList();
+
+      apps.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
+      return apps;
     } catch (e) {
       debugPrint('Error fetching installed apps: $e');
       return [];
@@ -51,8 +55,6 @@ class _AppLimitState extends State<AppLimit> {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
       final userId = user?.uid;
-
-      // Convert the time limit from minutes to seconds
       final int timeLimitInSeconds = timeLimitInMinutes * 60;
 
       await FirebaseFirestore.instance
@@ -63,10 +65,10 @@ class _AppLimitState extends State<AppLimit> {
           .collection('InstalledApps')
           .doc(appId)
           .update({
-        'timeLimit': timeLimitInSeconds, // Save the time limit in seconds
+        'timeLimit': timeLimitInSeconds,
+        'isBlocked': false, // Set isBlocked to false when setting a time limit
       });
 
-      // Show a success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Time limit updated!')),
       );
@@ -82,10 +84,8 @@ class _AppLimitState extends State<AppLimit> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        // You can customize what happens when the back button is pressed
-        // For example, if you want to navigate back to the previous screen instead of home:
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (c)=> SelectedChildScreen(childId: widget.childId,)));
-        return Future.value(false); // This prevents the default back behavior
+        return Future.value(false);
       },
       child: Scaffold(
         appBar: AppBar(
@@ -93,54 +93,76 @@ class _AppLimitState extends State<AppLimit> {
           title: const Text('Manage Apps', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
           centerTitle: true,
         ),
-        body: FutureBuilder<List<Map<String, dynamic>>>(
-          future: installedAppsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
-              return const Center(child: Text('Error fetching apps.'));
-            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text('No apps found.'));
-            } else {
-              final installedApps = snapshot.data!;
-
-              return ListView.builder(
-                itemCount: installedApps.length,
-                itemBuilder: (context, index) {
-                  final app = installedApps[index];
-                  final appName = app['name'] ?? 'Unknown App';
-                  final appId = app['id'];
-                  final appIconUrl = app['iconUrl']; // Assume iconUrl is stored in Firestore
-
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(12),
-                      leading: appIconUrl != null
-                          ? Image.network(appIconUrl, width: 40, height: 40) // Display app icon from URL
-                          : const Icon(Icons.apps, size: 40), // Fallback if no icon URL
-                      title: Text(appName, style: const TextStyle(fontWeight: FontWeight.w500)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.timer, color: Color(0xFFFF4081)), // Timer icon with color
-                        onPressed: () {
-                          _showTimeLimitDialog(appId);
-                        },
-                      ),
-                    ),
-                  );
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                decoration: InputDecoration(
+                  labelText: 'Search Apps',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    searchQuery = value.toLowerCase();
+                  });
                 },
-              );
-            }
-          },
+              ),
+            ),
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: installedAppsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return const Center(child: Text('Error fetching apps.'));
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Text('No apps found.'));
+                  } else {
+                    final installedApps = snapshot.data!
+                        .where((app) => (app['name'] ?? '').toLowerCase().contains(searchQuery))
+                        .toList();
+
+                    return ListView.builder(
+                      itemCount: installedApps.length,
+                      itemBuilder: (context, index) {
+                        final app = installedApps[index];
+                        final appName = app['name'] ?? 'Unknown App';
+                        final appId = app['id'];
+                        final appIconUrl = app['iconUrl'];
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                          elevation: 4,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.all(12),
+                            leading: appIconUrl != null
+                                ? Image.network(appIconUrl, width: 40, height: 40)
+                                : const Icon(Icons.apps, size: 40),
+                            title: Text(appName, style: const TextStyle(fontWeight: FontWeight.w500)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.timer, color: Color(0xFFFF4081)),
+                              onPressed: () {
+                                _showTimeLimitDialog(appId);
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // Function to show the time limit input dialog
   void _showTimeLimitDialog(String appId) {
     final TextEditingController timeLimitController = TextEditingController();
 
@@ -155,7 +177,7 @@ class _AppLimitState extends State<AppLimit> {
             decoration: const InputDecoration(
               labelText: 'Time limit (in minutes)',
             ),
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly], // Ensure only numbers
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           ),
           actions: <Widget>[
             TextButton(

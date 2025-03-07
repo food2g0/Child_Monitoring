@@ -4,6 +4,7 @@ import 'package:child_moni/api/firebase_api.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:workmanager/workmanager.dart';
 import 'onboardingScreen.dart';
 import 'firebase_options.dart';
 
@@ -13,10 +14,24 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+
   await FirebaseApi().initNotification();
+
+
+
+  Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+  Workmanager().registerPeriodicTask("1", "simpleTask",
+      frequency: Duration(minutes: 5)); // Run every 15 minutes
 
   // Run the app
   runApp(const MyApp());
+}
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) {
+    // Perform background tasks (e.g., check user authentication, sync data, send notifications)
+    return Future.value(true);
+  });
 }
 
 class MyApp extends StatelessWidget {

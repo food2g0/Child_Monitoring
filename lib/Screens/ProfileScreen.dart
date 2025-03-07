@@ -38,22 +38,34 @@ class _ProfilePageState extends State<ProfilePage> {
   void _fetchUserData() async {
     try {
       final User? currentUser = _auth.currentUser;
-      if (currentUser != null) {
-        DocumentSnapshot userDoc =
-        await _firestore.collection('Parent').doc(currentUser.uid).get();
 
-        if (userDoc.exists) {
-          setState(() {
-            name = userDoc['name'] ?? "No name";
-            email = userDoc['email'] ?? "No email";
-            phone = userDoc['phone'] ?? "No phone";
-          });
-        }
+      if (currentUser == null) {
+        print("No authenticated user found.");
+        return;
+      }
+
+      DocumentSnapshot userDoc =
+      await _firestore.collection('Parent').doc(currentUser.uid).get();
+
+      if (!userDoc.exists) {
+        print("User document does not exist.");
+        return;
+      }
+
+      print("User data: ${userDoc.data()}");
+
+      if (mounted) {
+        setState(() {
+          name = userDoc['name'] ?? "No name";
+          email = userDoc['email'] ?? "No email";
+          phone = userDoc['phone'] ?? "No phone";
+        });
       }
     } catch (e) {
       print("Error fetching user data: $e");
     }
   }
+
 
   void _editField(String field, String currentValue) async {
     TextEditingController controller = TextEditingController(text: currentValue);

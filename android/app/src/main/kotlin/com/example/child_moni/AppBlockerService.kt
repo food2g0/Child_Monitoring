@@ -94,7 +94,6 @@ class AppBlockerService : AccessibilityService() {
 
         val appsCollectionPath = "Parent/$currentUserId/Child/$currentChildId/InstalledApps"
 
-        // Fetch all apps from Firestore
         db.collection(appsCollectionPath)
             .get()
             .addOnSuccessListener { documents ->
@@ -107,18 +106,18 @@ class AppBlockerService : AccessibilityService() {
                     val isBlocked = doc.getBoolean("isBlocked") ?: false
 
                     if (!packageName.isNullOrEmpty()) {
-                        // Only add to the time limits map if the time limit is greater than 0
                         if (timeLimit > 0) {
                             appTimeLimits[packageName] = timeLimit
                         }
-
-                        // Only add to the blocked list if "isBlocked" is true
                         if (isBlocked) {
                             blockedApps.add(packageName)
                         }
 
-                        // Immediately start the timer if the app is in the foreground and has a valid time limit
-                        if (isAppInForeground(packageName) && timeLimit > 0) {
+                        Log.d("AppBlockerService", "Fetched app: $packageName, timeLimit: $timeLimit, isBlocked: $isBlocked")
+
+                        // Ensure the app is in the foreground before starting the timer
+                        if (isAppInForeground(packageName)) {
+                            Log.d("AppBlockerService", "Starting timer for $packageName with $timeLimit seconds")
                             startAppTimer(packageName, timeLimit)
                         }
                     }
@@ -131,6 +130,7 @@ class AppBlockerService : AccessibilityService() {
 
 
 
+
     private fun isDontBlock(packageName: String): Boolean {
         // Here, you can check the database or your app's configuration
         // For example, check if the app has the "dontBlock" field set to "yes"
@@ -139,17 +139,16 @@ class AppBlockerService : AccessibilityService() {
 
 
     private fun handleBlockedApps(packageName: String?) {
-        if (packageName.isNullOrEmpty()) return
+        if (packageName.isNullOrEmpty()) return;
 
-        // Skip blocking logic if the app is child_moni or marked as "don't block"
-        if (packageName == packageNameOfThisApp || isDontBlock(packageName)) {
-            Log.d("AppBlockerService", "$packageName is not blocked (dontBlock is true or it's child_moni)")
-            return
+        // Ensure child_moni is never blocked
+        if (packageName == packageNameOfThisApp) {
+            Log.d("AppBlockerService", "$packageName is the monitoring app and will not be blocked");
+            return;
         }
 
-        // Only block the app if it's explicitly marked as "blocked"
         if (isAppBlocked(packageName)) {
-            showBlockScreen()
+            showBlockScreen();
         }
     }
 
@@ -174,56 +173,57 @@ class AppBlockerService : AccessibilityService() {
     }
 
     private fun isAppBlocked(packageName: String?): Boolean {
-        if (packageName == null) return false
-        val normalizedPackageName = packageName.trim().lowercase()
-        val normalizedBlockedApps = blockedApps.map { it.trim().lowercase() }
-        val isBlocked = normalizedBlockedApps.contains(normalizedPackageName)
-        Log.d("AppBlockerService", "Checking if app is blocked: $packageName -> $isBlocked")
-        return isBlocked
+        if (packageName == null) return false;
+
+        // Ensure child_moni is never considered blocked
+        if (packageName == packageNameOfThisApp) {
+            Log.d("AppBlockerService", "$packageName is the monitoring app and will not be blocked");
+            return false;
+        }
+
+        val normalizedPackageName = packageName.trim().lowercase();
+        val normalizedBlockedApps = blockedApps.map { it.trim().lowercase() };
+        val isBlocked = normalizedBlockedApps.contains(normalizedPackageName);
+        Log.d("AppBlockerService", "Checking if app is blocked: $packageName -> $isBlocked");
+        return isBlocked;
     }
 
+
     private fun startAppTimer(packageName: String, timeLimit: Int) {
-        // If the app is already blocked, do not start the timer
         if (isAppBlocked(packageName)) {
             Log.d("AppBlockerService", "Skipping timer for $packageName as it is already blocked")
             return
         }
 
-        // Only restart the timer if it has already finished or if the time limit has changed
-        val existingTimer = appTimers[packageName]
-        if (existingTimer != null) {
-            // Timer is already running, don't restart it
+        // If there's already a timer for this app, do not restart
+        if (appTimers.containsKey(packageName)) {
+            Log.d("AppBlockerService", "Timer already running for $packageName, skipping restart")
             return
         }
 
-        // If there's already a timer for this app, cancel it before starting a new one
-        appTimers[packageName]?.cancel()
+        Log.d("AppBlockerService", "Starting timer for $packageName with $timeLimit seconds")
 
-        // Create a new timer
         val timer = object : CountDownTimer((timeLimit * 1000).toLong(), 1000) {
             override fun onTick(millisUntilFinished: Long) {
-                // Update the time limit every second
-                appTimeLimits[packageName] = (millisUntilFinished / 1000).toInt()
-                Log.d("AppBlockerService", "Time left for $packageName: ${appTimeLimits[packageName]} seconds")
+                val secondsRemaining = (millisUntilFinished / 1000).toInt()
+                appTimeLimits[packageName] = secondsRemaining
+                Log.d("AppBlockerService", "Time left for $packageName: $secondsRemaining seconds")
             }
 
             override fun onFinish() {
                 Log.d("AppBlockerService", "Time's up for $packageName. Blocking app.")
                 currentBlockedApp = packageName
                 showBlockScreen()
-
-                // Update the database to set isBlocked = true
                 updateAppBlockedStatus(packageName)
-
-                // Reset the timer reference for the app
-                appTimers[packageName] = null // Set to null to avoid restarting
+                appTimers.remove(packageName) // Ensure it can restart later
             }
         }
 
-        // Start the countdown timer
         timer.start()
         appTimers[packageName] = timer
     }
+
+
     // Function to update the "isBlocked" field in Firestore
     private fun updateAppBlockedStatus(packageName: String) {
         if (currentChildId.isNullOrEmpty() || currentUserId.isNullOrEmpty()) {
@@ -264,26 +264,23 @@ class AppBlockerService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        val eventType = event.eventType
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val packageName = event.packageName?.toString()
 
-        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val packageName: String? = event.packageName?.toString()
-
-            if (packageName != null) {
-                // Set the currentForegroundApp whenever the window state changes
+            if (!packageName.isNullOrEmpty()) {
                 currentForegroundApp = packageName
-
+                Log.d("AppBlockerService", "Current foreground app: $currentForegroundApp")
 
                 if (!isAppInForegrounds(packageName)) {
                     stopAppTimer(packageName)
                 } else {
-                    // If the app is in the foreground, handle it accordingly
                     handleBlockedApps(packageName)
                     handleTimeLimitApps(packageName)
                 }
             }
         }
     }
+
 
     // Method to stop the app timer when it is no longer in the foreground
     private fun stopAppTimer(packageName: String) {
@@ -342,13 +339,15 @@ class AppBlockerService : AccessibilityService() {
 
                     Log.d("AppBlockerService", "Updated app list and timers in real-time")
 
-                    // Check if the current app is now blocked
-                    if (isAppBlocked(currentForegroundApp)) {
-                        showBlockScreen() // Immediately show the block screen
+
+                    if (isAppBlocked(currentForegroundApp) && !isOverlayVisible) {
+                        Log.e("AppBlockerService", "Blocking ${currentForegroundApp} due to database update!")
+                        showBlockScreen()
                     }
                 }
             }
     }
+
 
 
     private fun showBlockScreen() {
