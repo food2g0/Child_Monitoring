@@ -15,6 +15,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Looper
+import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
 import android.os.Build
@@ -25,7 +26,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.google.firebase.firestore.FirebaseFirestore
-
+import android.app.PendingIntent
 
 class AppBlockerService : AccessibilityService() {
 
@@ -48,6 +49,20 @@ class AppBlockerService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d("AppBlockerService", "Service connected")
+
+        createNotificationChannel()
+
+        val notificationIntent = Intent(this, BlockScreenActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
+
+        val notification = NotificationCompat.Builder(this, "AppBlockerServiceChannel")
+            .setContentTitle("App Blocker Service")
+            .setContentText("Monitoring apps in the background")
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        startForeground(1, notification)
 
         sharedPreferences = getSharedPreferences("child_moni_prefs", Context.MODE_PRIVATE)
         currentChildId = sharedPreferences.getString("childDocId", null)
@@ -74,6 +89,23 @@ class AppBlockerService : AccessibilityService() {
 
         if (!Settings.canDrawOverlays(this)) {
             Log.e("AppBlockerService", "Overlay permission not granted. Cannot show block screen.")
+        }
+    }
+    private fun showOverlay() {
+        val overlayIntent = Intent(this, BlockScreenActivity::class.java)
+        overlayIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(overlayIntent)
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val serviceChannel = NotificationChannel(
+                "AppBlockerServiceChannel",
+                "App Blocker Service Channel",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(serviceChannel)
         }
     }
 

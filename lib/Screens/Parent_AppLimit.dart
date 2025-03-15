@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 import 'package:child_moni/Screens/SelectedChildScreen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
+import 'package:http/http.dart' as http;
+import 'package:googleapis_auth/auth_io.dart' as ga;
+import 'package:firebase_auth/firebase_auth.dart';
 class AppLimit extends StatefulWidget {
   final String childId;
   const AppLimit({super.key, required this.childId});
@@ -15,6 +19,8 @@ class AppLimit extends StatefulWidget {
 
 class _AppLimitState extends State<AppLimit> {
   late Future<List<Map<String, dynamic>>> installedAppsFuture;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   String searchQuery = "";
 
   @override
@@ -68,7 +74,7 @@ class _AppLimitState extends State<AppLimit> {
         'timeLimit': timeLimitInSeconds,
         'isBlocked': false, // Set isBlocked to false when setting a time limit
       });
-
+      await sendNotificationToChild();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Time limit updated!')),
       );
@@ -79,7 +85,74 @@ class _AppLimitState extends State<AppLimit> {
       );
     }
   }
+  Future<String> getAccessToken() async {
+    try {
+      final serviceAccountJson = await rootBundle.loadString('assets/childmonitoring.json');
+      final credentials = ga.ServiceAccountCredentials.fromJson(serviceAccountJson);
 
+      final client = await ga.clientViaServiceAccount(
+        credentials,
+        ['https://www.googleapis.com/auth/cloud-platform'],
+      );
+
+      return client.credentials.accessToken.data;
+    } catch (e) {
+      debugPrint("Error getting access token: $e");
+      return "";
+    }
+  }
+  Future<void> sendNotificationToChild() async {
+    try {
+      // Get child's FCM token
+      final userId = _auth.currentUser?.uid;
+      final childDoc = await _firestore.collection('Parent').doc(userId).collection('Child').doc(widget.childId).get();
+
+      final String? fcmToken = childDoc.data()?['fcmToken'];
+      if (fcmToken == null) {
+        debugPrint('FCM token not found for child');
+        return;
+      }
+
+      final String accessToken = await getAccessToken();
+      if (accessToken.isEmpty) {
+        debugPrint('Failed to get access token');
+        return;
+      }
+
+      final Uri url = Uri.parse(
+          'https://fcm.googleapis.com/v1/projects/7438395273/messages:send');
+
+      final Map<String, dynamic> notificationPayload = {
+        "message": {
+          "token": fcmToken,
+          "notification": {
+            "title": "App Limit",
+            "body": "Your parent set time limit to your app.",
+          },
+          "android": {
+            "priority": "high",
+          },
+        }
+      };
+
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $accessToken",
+        },
+        body: jsonEncode(notificationPayload),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('Notification sent successfully');
+      } else {
+        debugPrint('Failed to send notification: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error sending notification: $e');
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return WillPopScope(

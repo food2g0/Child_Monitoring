@@ -204,7 +204,11 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun startAppBlockerService() {
-        val intent = Intent(this, AppBlockerService::class.java)
-        startService(intent)
+        val serviceIntent = Intent(this, AppBlockerService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
     }
 }
