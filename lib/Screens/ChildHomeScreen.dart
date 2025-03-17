@@ -101,6 +101,8 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     });
   }
 
+  //Ito yung function na nagloload ng custom marker at naglalagay ng marker sa current location
+
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
@@ -135,6 +137,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     _uploadLocationToFirestore(position);
   }
 
+  //ito yung function na nag uupdate ng location sa firestore
   Future<void> _uploadLocationToFirestore(Position position) async {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -151,6 +154,8 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       print("Location updated in Firestore.");
     }
   }
+
+
 
 
   Future<void> sendCurrentChildIdToKotlin(String childDocId) async {
@@ -310,6 +315,9 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       print("App usage permission is not required for your Android version.");
     }
   }
+
+
+  //ito yung function na nag ffetch ng installed apps
 
   Future<void> fetchInstalledApps() async {
     try {

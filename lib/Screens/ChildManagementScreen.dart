@@ -1,8 +1,8 @@
-import 'package:child_moni/Screens/SelectedChildScreen.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'AddChildScreen.dart';
+import 'SelectedChildScreen.dart';
 
 class ChildrenScreen extends StatefulWidget {
   @override
@@ -35,6 +35,109 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
       debugPrint('Error fetching children: $e');
       return [];
     }
+  }
+
+  // Delete child from Firestore
+  Future<void> _deleteChild(String childId) async {
+    try {
+      final String userId = _auth.currentUser!.uid;
+      await _firestore
+          .collection('Parent')
+          .doc(userId)
+          .collection('Child')
+          .doc(childId)
+          .delete();
+      setState(() {});
+    } catch (e) {
+      debugPrint('Error deleting child: $e');
+    }
+  }
+
+  // Show delete confirmation dialog
+  void _showDeleteConfirmationDialog(BuildContext context, String childId) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Delete Child'),
+          content: Text('Are you sure you want to delete this child?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _deleteChild(childId);
+              },
+              child: Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Show edit modal
+  void _showEditModal(BuildContext context, Map<String, dynamic> child) {
+    final TextEditingController nameController = TextEditingController(text: child['name']);
+    final TextEditingController ageController = TextEditingController(text: child['age'].toString());
+    final TextEditingController pinController = TextEditingController(text: child['pin'].toString());
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Edit Child'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(labelText: 'Name'),
+              ),
+              SizedBox(height: 10,),
+              TextField(
+                controller: ageController,
+                decoration: InputDecoration(labelText: 'Age'),
+                keyboardType: TextInputType.number,
+              ),
+              SizedBox(height: 10,),
+              TextField(
+                controller: pinController,
+                decoration: InputDecoration(labelText: 'PIN'),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final String userId = _auth.currentUser!.uid;
+                await _firestore
+                    .collection('Parent')
+                    .doc(userId)
+                    .collection('Child')
+                    .doc(child['id'])
+                    .update({
+                  'name': nameController.text,
+                  'age': int.parse(ageController.text),
+                  'pin': int.parse(pinController.text),
+                });
+                Navigator.of(context).pop();
+                setState(() {});
+              },
+              child: Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _onItemTapped(int index) {
@@ -95,6 +198,19 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
                   subtitle: Text(
                     'Age: ${child['age'] ?? 'N/A'}',
                     style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.edit, color: Colors.blue),
+                        onPressed: () => _showEditModal(context, child),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _showDeleteConfirmationDialog(context, child['id']),
+                      ),
+                    ],
                   ),
                   onTap: () {
                     // Pass the document ID (child ID) to SelectedChildScreen

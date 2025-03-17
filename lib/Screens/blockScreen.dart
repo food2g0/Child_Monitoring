@@ -39,6 +39,8 @@ class _BlockScreenState extends State<BlockScreen> {
     });
   }
 
+  //function para makuha yung mga installed apps ng bata
+
   Future<List<Map<String, dynamic>>> fetchInstalledApps() async {
     try {
       final User? user = _auth.currentUser;
@@ -107,6 +109,8 @@ class _BlockScreenState extends State<BlockScreen> {
             .doc(appId)
             .set({'isBlocked': isBlocked}, SetOptions(merge: true)); // This prevents overwriting unnecessary fields
 
+
+        //Ito yung code na mag sesend ng notification sa bata kapag na block yung app
 
         if (isBlocked) {
           await sendNotificationToChild(appName);

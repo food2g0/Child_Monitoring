@@ -57,6 +57,9 @@ class _AppLimitState extends State<AppLimit> {
     }
   }
 
+
+
+  //for Time limit
   Future<void> setAppTimeLimit(String appId, int timeLimitInMinutes) async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
@@ -85,6 +88,8 @@ class _AppLimitState extends State<AppLimit> {
       );
     }
   }
+
+  //Para makuha yung notification Token
   Future<String> getAccessToken() async {
     try {
       final serviceAccountJson = await rootBundle.loadString('assets/childmonitoring.json');
@@ -101,6 +106,11 @@ class _AppLimitState extends State<AppLimit> {
       return "";
     }
   }
+
+
+
+
+  //function sa pagsend ng notification
   Future<void> sendNotificationToChild() async {
     try {
       // Get child's FCM token
