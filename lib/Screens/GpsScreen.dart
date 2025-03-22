@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import 'SelectedChildScreen.dart';
+
 class Gpsscreen extends StatefulWidget {
   final String childId;
 
@@ -58,27 +60,33 @@ class _GpsscreenState extends State<Gpsscreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Child Location'),
-          backgroundColor: const Color(0xFFFFC0CB)
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _childLocation == null
-          ? const Center(child: Text('Location data not available'))
-          : GoogleMap(
-        initialCameraPosition: CameraPosition(
-          target: _childLocation!,
-          zoom: 15,
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (c)=> SelectedChildScreen(childId: widget.childId,)));
+        return Future.value(false);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Child Location'),
+            backgroundColor: const Color(0xFFFFC0CB)
         ),
-        markers: {
-          Marker(
-            markerId: const MarkerId('childLocation'),
-            position: _childLocation!,
-            infoWindow: const InfoWindow(title: 'Child\'s Location'),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _childLocation == null
+            ? const Center(child: Text('Location data not available'))
+            : GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: _childLocation!,
+            zoom: 15,
           ),
-        },
+          markers: {
+            Marker(
+              markerId: const MarkerId('childLocation'),
+              position: _childLocation!,
+              infoWindow: const InfoWindow(title: 'Child\'s Location'),
+            ),
+          },
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'AddChildScreen.dart';
+import 'HomeScreen.dart';
 import 'SelectedChildScreen.dart';
 
 class ChildrenScreen extends StatefulWidget {
@@ -37,16 +38,25 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
     }
   }
 
+  // Recursively delete a document and its sub-collections
+  Future<void> _deleteDocumentWithSubCollections(DocumentReference docRef) async {
+    final subCollections = await docRef.collection('subCollectionName').get();
+    for (final subCollectionDoc in subCollections.docs) {
+      await _deleteDocumentWithSubCollections(subCollectionDoc.reference);
+    }
+    await docRef.delete();
+  }
+
   // Delete child from Firestore
   Future<void> _deleteChild(String childId) async {
     try {
       final String userId = _auth.currentUser!.uid;
-      await _firestore
+      final DocumentReference childDocRef = _firestore
           .collection('Parent')
           .doc(userId)
           .collection('Child')
-          .doc(childId)
-          .delete();
+          .doc(childId);
+      await _deleteDocumentWithSubCollections(childDocRef);
       setState(() {});
     } catch (e) {
       debugPrint('Error deleting child: $e');
@@ -151,97 +161,103 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Color(0xFFFFC0CB),
-        title: const Text('Children'),
-      ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _fetchChildren(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (c)=> MyFamilyScreen()));
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Color(0xFFFFC0CB),
+          title: const Text('Children'),
+        ),
+        body: FutureBuilder<List<Map<String, dynamic>>>(
+          future: _fetchChildren(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error: ${snapshot.error}'),
-            );
-          }
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('Error: ${snapshot.error}'),
+              );
+            }
 
-          final List<Map<String, dynamic>> children = snapshot.data ?? [];
+            final List<Map<String, dynamic>> children = snapshot.data ?? [];
 
-          if (children.isEmpty) {
-            return const Center(
-              child: Text(
-                'No children added yet.',
-                style: TextStyle(fontSize: 16),
-              ),
-            );
-          }
-
-          return ListView.builder(
-            itemCount: children.length,
-            itemBuilder: (context, index) {
-              final child = children[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Colors.lightBlue,
-                    child: Icon(Icons.child_care, color: Colors.white),
-                  ),
-                  title: Text(
-                    child['name'] ?? 'Unknown',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                  ),
-                  subtitle: Text(
-                    'Age: ${child['age'] ?? 'N/A'}',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () => _showEditModal(context, child),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _showDeleteConfirmationDialog(context, child['id']),
-                      ),
-                    ],
-                  ),
-                  onTap: () {
-                    // Pass the document ID (child ID) to SelectedChildScreen
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SelectedChildScreen(childId: child['id']),
-                      ),
-                    );
-                  },
+            if (children.isEmpty) {
+              return const Center(
+                child: Text(
+                  'No children added yet.',
+                  style: TextStyle(fontSize: 16),
                 ),
               );
-            },
-          );
-        },
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_add_alt),
-            label: 'Add Child',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'Children',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        onTap: _onItemTapped,
+            }
+
+            return ListView.builder(
+              itemCount: children.length,
+              itemBuilder: (context, index) {
+                final child = children[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.lightBlue,
+                      child: Icon(Icons.child_care, color: Colors.white),
+                    ),
+                    title: Text(
+                      child['name'] ?? 'Unknown',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    ),
+                    subtitle: Text(
+                      'Age: ${child['age'] ?? 'N/A'}',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _showEditModal(context, child),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _showDeleteConfirmationDialog(context, child['id']),
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      // Pass the document ID (child ID) to SelectedChildScreen
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SelectedChildScreen(childId: child['id']),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            );
+          },
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_add_alt),
+              label: 'Add Child',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people),
+              label: 'Children',
+            ),
+          ],
+          currentIndex: _selectedIndex,
+          selectedItemColor: Colors.blue,
+          unselectedItemColor: Colors.grey,
+          onTap: _onItemTapped,
+        ),
       ),
     );
   }

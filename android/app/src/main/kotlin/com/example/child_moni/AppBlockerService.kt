@@ -46,6 +46,8 @@ class AppBlockerService : AccessibilityService() {
     private val packageNameOfThisApp = "com.example.child_moni"
 
 
+
+    // Method to check if the accessibility service is enabled -------------------------------------------
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d("AppBlockerService", "Service connected")

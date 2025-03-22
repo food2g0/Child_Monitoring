@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:googleapis_auth/auth_io.dart' as ga;
 
+import 'SelectedChildScreen.dart';
+
 
 class BlockScreen extends StatefulWidget {
   final String childId;
@@ -199,74 +201,81 @@ class _BlockScreenState extends State<BlockScreen> {
   @override
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFFFC0CB),
-        title: const Text('Manage Apps'),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: searchController,
-              decoration: InputDecoration(
-                hintText: "Search apps...",
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+    return WillPopScope(
+      onWillPop: () async {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (c)=> SelectedChildScreen(childId: widget.childId,)));
+          return Future.value(false);
+        },
+
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFFFC0CB),
+          title: const Text('Manage Apps'),
+          centerTitle: true,
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: searchController,
+                decoration: InputDecoration(
+                  hintText: "Search apps...",
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: installedAppsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return const Center(child: Text('Error fetching apps.'));
-                } else if (filteredApps.isEmpty) {
-                  return const Center(child: Text('No apps found.'));
-                } else {
-                  return ListView.builder(
-                    itemCount: filteredApps.length,
-                    itemBuilder: (context, index) {
-                      final app = filteredApps[index];
-                      final appName = app['name'] ?? 'Unknown App';
-                      final isBlocked = app['isBlocked'] ?? false;
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: installedAppsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return const Center(child: Text('Error fetching apps.'));
+                  } else if (filteredApps.isEmpty) {
+                    return const Center(child: Text('No apps found.'));
+                  } else {
+                    return ListView.builder(
+                      itemCount: filteredApps.length,
+                      itemBuilder: (context, index) {
+                        final app = filteredApps[index];
+                        final appName = app['name'] ?? 'Unknown App';
+                        final isBlocked = app['isBlocked'] ?? false;
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                        child: ListTile(
-                          leading: Icon(Icons.apps, color: isBlocked ? Colors.red : Colors.green),
-                          title: Text(appName),
-                          trailing: ElevatedButton(
-                            onPressed: () {
-                              toggleAppStatus(app['id'], !isBlocked, appName);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isBlocked ? Colors.green : const Color(0xFFe01e37),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                          child: ListTile(
+                            leading: Icon(Icons.apps, color: isBlocked ? Colors.red : Colors.green),
+                            title: Text(appName),
+                            trailing: ElevatedButton(
+                              onPressed: () {
+                                toggleAppStatus(app['id'], !isBlocked, appName);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isBlocked ? Colors.green : const Color(0xFFe01e37),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: Text(
+                                isBlocked ? 'Unblock' : 'Block',
+                                style: const TextStyle(color: Color(0xFFf5f3f4)),
                               ),
                             ),
-                            child: Text(
-                              isBlocked ? 'Unblock' : 'Block',
-                              style: const TextStyle(color: Color(0xFFf5f3f4)),
-                            ),
                           ),
-                        ),
-                      );
-                    },
-                  );
-                }
-              },
+                        );
+                      },
+                    );
+                  }
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -452,15 +452,18 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         .doc(widget.childDocId)
         .collection('AppSessions');
 
+    // Fetch the app name using the package name
+    final appName = installedApps.firstWhere((app) => app.packageName == packageName).name;
+
     await sessionCollection.add({
       'packageName': packageName,
+      'appName': appName,
       'startTime': Timestamp.now(),
       'status': 'opened', // Just to mark the event
     });
 
-    print("📂 Logged app opened: $packageName");
+    print("📂 Logged app opened: $packageName ($appName)");
   }
-
 
   Future<void> logAppSession(String packageName, DateTime start, DateTime end, int duration) async {
     final User? user = FirebaseAuth.instance.currentUser;
@@ -474,17 +477,20 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         .doc(widget.childDocId)
         .collection('AppSessions');
 
+    // Fetch the app name using the package name
+    final appName = installedApps.firstWhere((app) => app.packageName == packageName).name;
+
     await sessionCollection.add({
       'packageName': packageName,
+      'appName': appName,
       'startTime': Timestamp.fromDate(start),
       'endTime': Timestamp.fromDate(end),
       'duration': duration,
       'status': 'closed',
     });
 
-    print("📂 Logged app closed: $packageName | Duration: $duration sec");
+    print("📂 Logged app closed: $packageName ($appName) | Duration: $duration sec");
   }
-
 
 
 

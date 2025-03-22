@@ -64,6 +64,8 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
     }
   }
 
+
+  //Pag get ng mga child sa Your Children section --------------------------------------------------------------
   Future<void> _fetchChildren() async {
     setState(() {
       _isLoading = true;
@@ -94,6 +96,8 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
     }
   }
 
+
+  //GoogleMap Marker --------------------------------------------------------------
 
   Future<void> _updateMarkers() async {
     Set<Marker> newMarkers = {};
@@ -202,6 +206,8 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
             ),
           ],
         ),
+
+        // Drawer for navigation --------------------------------------------------------------
         drawer: Drawer(
           child: ListView(
             padding: EdgeInsets.zero,
@@ -288,7 +294,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Title Section
+                      //Your  Children section --------------------------------------------------------------
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8.0),
                         child: Text(
@@ -301,7 +307,6 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                         ),
                       ),
 
-                      // Container with background color DAECF2
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.all(16.0),
@@ -414,7 +419,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
 
                 const SizedBox(height: 20),
 
-                // Location Section
+                // Location Section----------------------------------------------------------------------------
                 const Text(
                   "Child Locations",
                   style: TextStyle(
@@ -447,19 +452,21 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                 const SizedBox(height: 20),
 
                 // Activities Section
+
+
+                //Report Section----------------------------------------------------------------------------
                 const Text(
                   "Reports",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 10),
                 children.isEmpty
-                    ? const Center(child: Text("No children available.")) // Message for no children
+                    ? const Center(child: Text("No children available."))
                     : Column(
                   children: children.map((child) {
                     return FutureBuilder<List<Map<String, dynamic>>>(
                       future: _fetchAppSessions(child['id']),
                       builder: (context, snapshot) {
-                        // Show loading indicator while waiting for data
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Padding(
                             padding: EdgeInsets.all(8.0),
@@ -467,7 +474,6 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                           );
                         }
 
-                        // If there's an error, display an error message
                         if (snapshot.hasError) {
                           debugPrint("Error fetching app sessions: ${snapshot.error}");
                           return ListTile(
@@ -476,7 +482,6 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                           );
                         }
 
-                        // Check if data is empty
                         if (!snapshot.hasData || snapshot.data!.isEmpty) {
                           debugPrint("No app sessions available for ${child['name']}");
                           return ListTile(
@@ -485,14 +490,15 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                           );
                         }
 
-                        // Data is available
                         debugPrint("Displaying app sessions for ${child['name']}");
                         return ExpansionTile(
                           title: Text(child['name'] ?? 'Unknown'),
                           children: snapshot.data!.map((session) {
                             return ListTile(
-                              title: Text(session['packageName'] ?? 'Unknown App'),
-                              subtitle: Text("Duration: ${session['duration']} seconds"),
+                              title: Text(session['appName'] ?? 'Unknown App'),
+                              subtitle: session['status'] == 'opened'
+                                  ? null
+                                  : Text("Duration: ${session['duration']} seconds"),
                               trailing: Text("${session['status'] ?? 'Unknown Status'}"),
                             );
                           }).toList(),
@@ -500,7 +506,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                       },
                     );
                   }).toList(),
-                ),
+                )
 
 
               ],
