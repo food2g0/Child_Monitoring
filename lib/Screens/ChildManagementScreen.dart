@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../Authentication/login.dart';
 import 'AddChildScreen.dart';
 import 'HomeScreen.dart';
 import 'SelectedChildScreen.dart';
@@ -14,6 +15,7 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
   int _selectedIndex = 1;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool _isLoading = false; // Track loading state
 
   // Fetch children from Firestore
   Future<List<Map<String, dynamic>>> _fetchChildren() async {
@@ -53,6 +55,9 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
 
   // Delete child from Firestore
   Future<void> _deleteChild(String childId) async {
+    setState(() {
+      _isLoading = true; // Start loading
+    });
     try {
       final String userId = _auth.currentUser!.uid;
       final DocumentReference childDocRef = _firestore
@@ -64,9 +69,22 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
       setState(() {});
     } catch (e) {
       debugPrint('Error deleting child: $e');
+    } finally {
+      setState(() {
+        _isLoading = false; // Stop loading
+      });
     }
   }
-
+  Future<void> handleLogout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=> LoginScreen()));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: ${e.toString()}")),
+      );
+    }
+  }
   // Show delete confirmation dialog
   void _showDeleteConfirmationDialog(BuildContext context, String childId) {
     showDialog(
@@ -175,7 +193,9 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
           backgroundColor: Color(0xFFFFC0CB),
           title: const Text('Children'),
         ),
-        body: FutureBuilder<List<Map<String, dynamic>>>(
+        body: _isLoading
+            ? Center(child: CircularProgressIndicator()) // Show loading indicator
+            : FutureBuilder<List<Map<String, dynamic>>>(
           future: _fetchChildren(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
