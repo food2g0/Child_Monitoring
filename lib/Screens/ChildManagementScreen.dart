@@ -40,8 +40,12 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
 
   // Recursively delete a document and its sub-collections
   Future<void> _deleteDocumentWithSubCollections(DocumentReference docRef) async {
-    final subCollections = await docRef.collection('subCollectionName').get();
+    final subCollections = await docRef.collection('AppSessions').get();
     for (final subCollectionDoc in subCollections.docs) {
+      await _deleteDocumentWithSubCollections(subCollectionDoc.reference);
+    }
+    final installedAppsCollection = await docRef.collection('InstalledApps').get();
+    for (final subCollectionDoc in installedAppsCollection.docs) {
       await _deleteDocumentWithSubCollections(subCollectionDoc.reference);
     }
     await docRef.delete();

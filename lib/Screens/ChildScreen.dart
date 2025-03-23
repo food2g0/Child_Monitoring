@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'ChooseScreen.dart';
+
 class ChildScreen extends StatefulWidget {
   const ChildScreen({super.key});
 
@@ -48,6 +50,15 @@ class _ChildScreenState extends State<ChildScreen> {
         backgroundColor: const Color(0xFFFFC0CB),
         title: const Text('My Children'),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ChooseScreen()),
+            );
+          },
+        ),
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _fetchChildren(),
@@ -125,6 +136,15 @@ class ChildDetailScreen extends StatelessWidget {
         backgroundColor: const Color(0xFFFFC0CB),
         title: Text(child['name'] ?? 'Child Details'),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ChooseScreen()),
+            );
+          },
+        ),
       ),
       body: Center(
         child: Text(

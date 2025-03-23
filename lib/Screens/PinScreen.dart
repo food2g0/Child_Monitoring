@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import 'ChooseScreen.dart';
+
 class Pinscreen extends StatefulWidget {
   const Pinscreen({super.key});
 
@@ -105,21 +107,26 @@ class _PinscreenState extends State<Pinscreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFFFC0CB),
+        title: const Text('Enter Your Pin'),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ChooseScreen()),
+            );
+          },
+        ),
+      ),
       backgroundColor: Colors.white,
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         physics: const BouncingScrollPhysics(),
         children: [
-          const SizedBox(height: 50),
-          Center(
-            child: Text(
-              'Enter Your Pin',
-              style: const TextStyle(
-                fontSize: 24,
-                color: Colors.black,
-              ),
-            ),
-          ),
+
           const SizedBox(height: 50),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

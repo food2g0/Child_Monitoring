@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:child_moni/AppBlocker.dart';
 import 'package:child_moni/api/firebase_api.dart';
@@ -17,8 +18,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
-
-
+import 'package:googleapis_auth/auth_io.dart' as ga;
+import 'package:http/http.dart' as http;
 
 class ChildHomeScreen extends StatefulWidget {
   final String childDocId;
@@ -36,7 +37,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   List<AppInfo> installedApps = [];
   late DateTime startTime;
   late DateTime endTime;
-
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   String? currentAppPackage;
   int usageTimeInSeconds = 0;
   static var platform = MethodChannel('com.example.app/foreground');
@@ -83,6 +84,75 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
   }
 
+  /// Get OAuth 2.0 Access Token for Firebase Cloud Messaging
+  Future<String> getAccessToken() async {
+    try {
+      final serviceAccountJson = await rootBundle.loadString('assets/childmonitoring.json');
+      final credentials = ga.ServiceAccountCredentials.fromJson(serviceAccountJson);
+
+      final client = await ga.clientViaServiceAccount(
+        credentials,
+        ['https://www.googleapis.com/auth/cloud-platform'],
+      );
+
+      return client.credentials.accessToken.data;
+    } catch (e) {
+      debugPrint("Error getting access token: $e");
+      return "";
+    }
+  }
+
+  Future<void> sendNotificationToParent(String childName) async {
+    try {
+      final User? user = _auth.currentUser;
+      final parentDoc = await _firestore.collection('Parent').doc(user?.uid).get();
+
+      final String? fcmToken = parentDoc.data()?['fcmToken'];
+      if (fcmToken == null) {
+        debugPrint('FCM token not found for parent');
+        return;
+      }
+
+      final String accessToken = await getAccessToken();
+      if (accessToken.isEmpty) {
+        debugPrint('Failed to get access token');
+        return;
+      }
+
+      final Uri url = Uri.parse(
+          'https://fcm.googleapis.com/v1/projects/7438395273/messages:send');
+
+      final Map<String, dynamic> notificationPayload = {
+        "message": {
+          "token": fcmToken,
+          "notification": {
+            "title": "Logout",
+            "body": "$childName has logged out.",
+          },
+          "android": {
+            "priority": "high",
+          },
+        }
+      };
+
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $accessToken",
+        },
+        body: jsonEncode(notificationPayload),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('Notification sent successfully');
+      } else {
+        debugPrint('Failed to send notification: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error sending notification: $e');
+    }
+  }
 
   Future<BitmapDescriptor> _getCustomMarker(double zoom) async {
     double scale = zoom / 15.0; // Adjust the scale factor as needed
@@ -150,7 +220,10 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
           .update({
         'location': {'latitude': position.latitude, 'longitude': position.longitude},
         'timestamp': Timestamp.now(),
+
+
       });
+      await FirebaseApi().initNotification();
       print("Location updated in Firestore.");
     }
   }
@@ -264,6 +337,9 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
             .collection('Parent')
             .doc(userId)
             .get();
+
+
+
 
         if (parentDoc.exists) {
           setState(() {
@@ -624,8 +700,24 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
   Future<void> handleLogout() async {
     try {
-      await FirebaseAuth.instance.signOut();
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginScreen()));
+      final User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final userId = user.uid;
+        final childDoc = await FirebaseFirestore.instance
+            .collection('Parent')
+            .doc(userId)
+            .collection('Child')
+            .doc(widget.childDocId)
+            .get();
+
+        final String? childName = childDoc.data()?['name'];
+        if (childName != null) {
+          await sendNotificationToParent(childName);
+        }
+
+        await FirebaseAuth.instance.signOut();
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginScreen()));
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: ${e.toString()}")),

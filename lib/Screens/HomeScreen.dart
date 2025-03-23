@@ -1,12 +1,15 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:child_moni/Authentication/login.dart';
 import 'package:child_moni/Screens/AddChildScreen.dart';
 import 'package:child_moni/Screens/ContactUsScreen.dart';
 import 'package:child_moni/Screens/ProfileScreen.dart';
 import 'package:child_moni/Screens/SelectedChildScreen.dart';
+import 'package:child_moni/api/firebasenotif_api.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math';
 
 class MyFamilyScreen extends StatefulWidget {
   const MyFamilyScreen({super.key});
@@ -18,23 +21,137 @@ class MyFamilyScreen extends StatefulWidget {
 class _MyFamilyScreenState extends State<MyFamilyScreen> {
   late GoogleMapController _controller;
   String userEmail = "Loading...";
+  LatLng safeZoneCenter = LatLng(14.55027, 121.03269); // Replace with desired coordinates
+  double safeZoneRadius = 1000; // Radius in meters
   bool _isLoading = true;
+  Set<Circle> _circles = {}; // Store circles for safe zones
   bool _hasFetchedChildren = false;
   List<Map<String, dynamic>> children = [];
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   Set<Marker> _markers = {}; // Store child location markers
   static const CameraPosition _initialCameraPosition = CameraPosition(
-    target: LatLng(14.5995, 120.9842), // Replace with desired coordinates
+    target: LatLng(14.55027, 121.03269), // Replace with desired coordinates
     zoom: 12.0,
   );
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
     fetchUserEmailFromParentCollection();
     _fetchChildren();
+    _setSafeZone();
+    _fetchSafeZone();
 
+
+  }
+
+  Future<void> _fetchSafeZone() async {
+    try {
+      final User? user = _auth.currentUser;
+      if (user != null) {
+        final DocumentSnapshot safeZoneDoc = await _firestore
+            .collection('Parent')
+            .doc(user.uid)
+            .collection('SafeZone')
+            .doc('safeZone')
+            .get();
+        if (safeZoneDoc.exists) {
+          setState(() {
+            safeZoneCenter = LatLng(
+              safeZoneDoc['center']['latitude'],
+              safeZoneDoc['center']['longitude'],
+            );
+            safeZoneRadius = safeZoneDoc['radius'];
+            _setSafeZone();
+          });
+        }
+      }
+      await FirebaseNotificationApi().initNotification();
+    } catch (e) {
+      debugPrint('Error fetching safe zone: $e');
+    }
+  }
+  void _setSafeZone() {
+    setState(() {
+      _circles.add(
+        Circle(
+          circleId: CircleId("safe_zone"),
+          center: safeZoneCenter,
+          radius: safeZoneRadius,
+          fillColor: Colors.blue.withOpacity(0.2),
+          strokeColor: Colors.blue,
+          strokeWidth: 2,
+        ),
+      );
+    });
+  }
+
+
+  double calculateDistance(LatLng point1, LatLng point2) {
+    const double earthRadius = 6371000; // Radius of the Earth in meters
+    double dLat = (point2.latitude - point1.latitude) * (pi / 180);
+    double dLng = (point2.longitude - point1.longitude) * (pi / 180);
+    double a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(point1.latitude * (pi / 180)) * cos(point2.latitude * (pi / 180)) *
+            sin(dLng / 2) * sin(dLng / 2);
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  // Function to check if the child is within the safe zone
+  bool isWithinSafeZone(LatLng childLocation) {
+    double distance = calculateDistance(safeZoneCenter, childLocation);
+    return distance <= safeZoneRadius;
+  }
+  Future<void> _uploadSafeZone() async {
+    try {
+      final User? user = _auth.currentUser;
+      if (user != null) {
+        await _firestore
+            .collection('Parent')
+            .doc(user.uid)
+            .collection('SafeZone')
+            .doc('safeZone')
+            .set({
+          'center': {
+            'latitude': safeZoneCenter.latitude,
+            'longitude': safeZoneCenter.longitude,
+          },
+          'radius': safeZoneRadius,
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Safe zone set successfully!')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to set safe zone.')),
+      );
+    }
+  }
+
+
+  void showAlert(BuildContext context, String childName) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Alert'),
+          content: Text('$childName is outside the safe zone!'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  Future<void> playBuzzer() async {
+    await _audioPlayer.play(AssetSource('assets/sounds/buzzer.mp3')); // Ensure you have the buzzer sound in assets
   }
 
   Future<void> fetchUserEmailFromParentCollection() async {
@@ -99,6 +216,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
 
   //GoogleMap Marker --------------------------------------------------------------
 
+// Update the _updateMarkers method to check the safe zone
   Future<void> _updateMarkers() async {
     Set<Marker> newMarkers = {};
     BitmapDescriptor customMarker = await _getCustomMarker();
@@ -118,6 +236,11 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
             infoWindow: InfoWindow(title: child['name'] ?? "Unknown Child"),
           ),
         );
+
+        if (!isWithinSafeZone(position)) {
+          showAlert(context, child['name'] ?? "Unknown Child");
+          playBuzzer();
+        }
       }
     }
 
@@ -125,7 +248,6 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
       _markers = newMarkers;
     });
 
-    // Optionally move camera to the first child's location
     if (children.isNotEmpty) {
       final firstChildLocation = children.first['location'];
       if (firstChildLocation != null) {
@@ -196,6 +318,10 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
           centerTitle: true,
           backgroundColor: const Color(0xFFFFC0CB),
           actions: [
+            IconButton(
+              icon: Icon(Icons.check),
+              onPressed: _uploadSafeZone,
+            ),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: CircleAvatar(
@@ -433,7 +559,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: GoogleMap(
+                  child:GoogleMap(
                     initialCameraPosition: _initialCameraPosition,
                     onMapCreated: (GoogleMapController controller) {
                       setState(() {
@@ -441,11 +567,19 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                       });
                     },
                     markers: _markers,
+                    circles: _circles,
                     mapType: MapType.normal,
                     myLocationEnabled: true,
                     zoomControlsEnabled: true,
-                    zoomGesturesEnabled: true, // Allows zooming
-                    scrollGesturesEnabled: true, // Allows moving
+                    zoomGesturesEnabled: true,
+                    scrollGesturesEnabled: true,
+                    onTap: (LatLng position) {
+                      setState(() {
+                        safeZoneCenter = position;
+                        _circles.clear();
+                        _setSafeZone();
+                      });
+                    },
                   ),
                 ),
 

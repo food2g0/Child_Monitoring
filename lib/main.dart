@@ -16,7 +16,7 @@ void main() async {
   );
 
 
-  await FirebaseApi().initNotification();
+  // await FirebaseApi().initNotification();
 
 
 

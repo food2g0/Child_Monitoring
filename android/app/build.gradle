@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.child_moni"
-    compileSdkVersion 34  // Ensure this is up to date
+    compileSdkVersion 35 // Ensure this is up to date
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
