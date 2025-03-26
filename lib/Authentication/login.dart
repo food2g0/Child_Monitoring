@@ -14,6 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _showPassword = false;
   String _errorMessage = "";
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Validate email
   bool isValidEmail(String email) {
@@ -21,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return emailRegex.hasMatch(email);
   }
 
-  // Handle login (without Firebase authentication)
+  // Handle login
   void handleLogin(BuildContext context) async {
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
@@ -45,13 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      // Sign in with Firebase Authentication
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      // Navigate to ChooseScreen
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const ChooseScreen()),
@@ -65,6 +60,46 @@ class _LoginScreenState extends State<LoginScreen> {
         } else {
           _errorMessage = "An error occurred: ${e.message}";
         }
+      });
+    }
+  }
+
+  // Handle password reset
+  void handleForgotPassword() async {
+    String email = _emailController.text.trim();
+
+    if (email.isEmpty) {
+      setState(() {
+        _errorMessage = "Please enter your email to reset your password.";
+      });
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setState(() {
+        _errorMessage = "Please enter a valid email address.";
+      });
+      return;
+    }
+
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text("Password Reset"),
+          content: Text("A password reset link has been sent to your email."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("OK"),
+            ),
+          ],
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _errorMessage = "Error: ${e.message}";
       });
     }
   }
@@ -87,14 +122,13 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-
               SizedBox(height: 50),
               Image.asset(
                 'assets/images/logo.png',
                 height: 100,
                 width: 100,
               ),
-              // "Welcome To" Text
+
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -103,7 +137,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // "Child Moni!" Text
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -112,7 +145,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // Email input field
               SizedBox(height: 40),
               Container(
                 decoration: BoxDecoration(
@@ -123,7 +155,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: TextField(
                   controller: _emailController,
                   decoration: InputDecoration(
-                    prefixIcon: Icon(FontAwesomeIcons.envelope, color: Color(0xFF007BFF), size: 18,),
+                    prefixIcon: Icon(FontAwesomeIcons.envelope, color: Color(0xFF007BFF), size: 18),
                     hintText: 'Email',
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.all(15),
@@ -132,7 +164,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // Password input field
               SizedBox(height: 15),
               Container(
                 decoration: BoxDecoration(
@@ -163,7 +194,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // Error message
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: handleForgotPassword,
+                  child: Text(
+                    'Forgot Password?',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF007BFF)),
+                  ),
+                ),
+              ),
+
               if (_errorMessage.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 10),
@@ -173,7 +214,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-              // Login button
               SizedBox(height: 20),
               SizedBox(
                 width: 200,
@@ -189,10 +229,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(fontSize: 16, color: Color(0xFF2B2D42)),
                   ),
                 ),
-
               ),
 
-              // Footer with Sign-Up link
               SizedBox(height: 20),
               Row(
                 children: [

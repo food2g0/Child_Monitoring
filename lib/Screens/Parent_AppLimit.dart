@@ -163,6 +163,13 @@ class _AppLimitState extends State<AppLimit> {
       debugPrint('Error sending notification: $e');
     }
   }
+  String _formatTime(int seconds) {
+    if (seconds <= 0) return "No time limit";
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return "$minutes min ${secs}s";
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -194,17 +201,27 @@ class _AppLimitState extends State<AppLimit> {
               ),
             ),
             Expanded(
-              child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: installedAppsFuture,
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance
+                    .collection('Parent')
+                    .doc(_auth.currentUser?.uid)
+                    .collection('Child')
+                    .doc(widget.childId)
+                    .collection('InstalledApps')
+                    .snapshots(), // Listening for real-time updates
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   } else if (snapshot.hasError) {
                     return const Center(child: Text('Error fetching apps.'));
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                     return const Center(child: Text('No apps found.'));
                   } else {
-                    final installedApps = snapshot.data!
+                    final installedApps = snapshot.data!.docs
+                        .map((doc) => {
+                      'id': doc.id,
+                      ...doc.data(),
+                    })
                         .where((app) => (app['name'] ?? '').toLowerCase().contains(searchQuery))
                         .toList();
 
@@ -216,30 +233,53 @@ class _AppLimitState extends State<AppLimit> {
                         final appId = app['id'];
                         final appIconUrl = app['iconUrl'];
 
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.all(12),
-                            leading: appIconUrl != null
-                                ? Image.network(appIconUrl, width: 40, height: 40)
-                                : const Icon(Icons.apps, size: 40),
-                            title: Text(appName, style: const TextStyle(fontWeight: FontWeight.w500)),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.timer, color: Color(0xFFFF4081)),
-                              onPressed: () {
-                                _showTimeLimitDialog(appId);
-                              },
-                            ),
-                          ),
+                        // Listen to Firestore updates for each app
+                        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                          stream: _firestore
+                              .collection('Parent')
+                              .doc(_auth.currentUser?.uid)
+                              .collection('Child')
+                              .doc(widget.childId)
+                              .collection('InstalledApps')
+                              .doc(appId)
+                              .snapshots(), // LISTEN FOR CHANGES HERE
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData || snapshot.data == null) {
+                              return const SizedBox(); // Prevents errors if no data is found
+                            }
+
+                            final appData = snapshot.data!.data();
+                            final int timeLimitInSeconds = appData?['timeLimit'] ?? 0;
+
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.all(12),
+                                leading: appIconUrl != null
+                                    ? Image.network(appIconUrl, width: 40, height: 40)
+                                    : const Icon(Icons.apps, size: 40),
+                                title: Text(appName, style: const TextStyle(fontWeight: FontWeight.w500)),
+                                subtitle: Text('Remaining Time: ${_formatTime(timeLimitInSeconds)}'),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.timer, color: Color(0xFFFF4081)),
+                                  onPressed: () {
+                                    _showTimeLimitDialog(appId);
+                                  },
+                                ),
+                              ),
+                            );
+                          },
                         );
                       },
                     );
+
                   }
                 },
               ),
             ),
+
           ],
         ),
       ),

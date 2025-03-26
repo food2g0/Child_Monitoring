@@ -190,15 +190,17 @@ class AppBlockerService : AccessibilityService() {
     private fun handleTimeLimitApps(packageName: String?) {
         if (packageName.isNullOrEmpty()) return
 
-        // Check if the app has a time limit and is in the foreground
         val appTimeLimit = appTimeLimits[packageName]
+        Log.d("AppBlockerService", "Checking time limit for $packageName: $appTimeLimit seconds")
 
         if (appTimeLimit != null && appTimeLimit > 0 && isAppInForeground(packageName)) {
+            Log.d("AppBlockerService", "Starting timer for $packageName with $appTimeLimit seconds")
             startAppTimer(packageName, appTimeLimit)
         } else {
             Log.d("AppBlockerService", "App $packageName has no time limit or is not in foreground")
         }
     }
+
 
 
     private fun isAppInForeground(packageName: String): Boolean {
@@ -242,6 +244,36 @@ class AppBlockerService : AccessibilityService() {
                 val secondsRemaining = (millisUntilFinished / 1000).toInt()
                 appTimeLimits[packageName] = secondsRemaining
                 Log.d("AppBlockerService", "Time left for $packageName: $secondsRemaining seconds")
+
+                // Update Firestore in real-time
+                updateAppTimeLimitInFirestore(packageName, secondsRemaining)
+            }
+
+            private fun updateAppTimeLimitInFirestore(packageName: String, timeRemaining: Int) {
+                if (currentChildId.isNullOrEmpty() || currentUserId.isNullOrEmpty()) {
+                    Log.e("AppBlockerService", "Cannot update time limit, child ID or user ID is null.")
+                    return
+                }
+
+                val appsCollectionPath = "Parent/$currentUserId/Child/$currentChildId/InstalledApps"
+
+                db.collection(appsCollectionPath)
+                    .whereEqualTo("packageName", packageName)
+                    .get()
+                    .addOnSuccessListener { documents ->
+                        for (document in documents) {
+                            document.reference.update("timeLimit", timeRemaining)
+                                .addOnSuccessListener {
+                                    Log.d("AppBlockerService", "Updated timeLimit for $packageName to $timeRemaining seconds")
+                                }
+                                .addOnFailureListener { exception ->
+                                    Log.e("AppBlockerService", "Failed to update timeLimit: ${exception.message}")
+                                }
+                        }
+                    }
+                    .addOnFailureListener { exception ->
+                        Log.e("AppBlockerService", "Failed to find app in Firestore: ${exception.message}")
+                    }
             }
 
             override fun onFinish() {

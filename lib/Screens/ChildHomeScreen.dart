@@ -775,13 +775,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
                 Navigator.pop(context);
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text("Profile"),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
+
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text("Logout"),

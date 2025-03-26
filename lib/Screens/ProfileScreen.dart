@@ -138,7 +138,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   const CircleAvatar(
                     radius: 30,
-                    backgroundImage: AssetImage("assets/images/onboarding.jpg"), // Replace with user image
+                    backgroundImage: AssetImage("assets/images/parent.webp"), // Replace with user image
                   ),
                   const SizedBox(height: 10),
                   const Text(
@@ -201,12 +201,9 @@ class _ProfilePageState extends State<ProfilePage> {
             CircleAvatar(
               radius: 50,
               backgroundColor: Colors.grey[200],
-              child: Icon(
-                Icons.add_a_photo,
-                size: 40,
-                color: Colors.black54,
-              ),
+              backgroundImage: AssetImage("assets/images/parent.webp"),
             ),
+
             const SizedBox(height: 16),
             Text(
               name,
