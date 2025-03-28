@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../SetSafeZone.dart';
 import 'ContactUsScreen.dart';
 import 'ProfileScreen.dart';
 
@@ -15,7 +16,7 @@ class AddChildScreen extends StatefulWidget {
 class _AddChildScreenState extends State<AddChildScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
-  final TextEditingController _pinController = TextEditingController();
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   int _selectedIndex = 0;
 
@@ -36,7 +37,8 @@ class _AddChildScreenState extends State<AddChildScreen> {
   Future<void> _addChild() async {
     final String name = _nameController.text.trim();
     final String age = _ageController.text.trim();
-    final String pin = _pinController.text.trim();
+
+
 
     if (name.isEmpty || age.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -56,14 +58,13 @@ class _AddChildScreenState extends State<AddChildScreen> {
       await parentDocRef.collection('Child').add({
         'name': name,
         'age': int.parse(age),
-        'pin': pin,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       // Clear the input fields after successful addition
       _nameController.clear();
       _ageController.clear();
-      _pinController.clear();
+
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Child added successfully')),
@@ -155,6 +156,14 @@ class _AddChildScreenState extends State<AddChildScreen> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.safety_check),
+                title: const Text("Safe Zone"),
+                onTap: () {
+                  Navigator.pushReplacement(context,
+                      MaterialPageRoute(builder: (context) => SetSafeZone()));
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.contact_page),
                 title: const Text("Contact Us"),
                 onTap: () {
@@ -217,20 +226,8 @@ class _AddChildScreenState extends State<AddChildScreen> {
                     ),
                     keyboardType: TextInputType.number,
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _pinController,
-                    decoration: InputDecoration(
-                      labelText: 'Pin',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    keyboardType: TextInputType.number,
-                    maxLength: 4,
-                  ),
+
+
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: _addChild,

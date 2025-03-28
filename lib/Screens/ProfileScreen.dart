@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../Authentication/login.dart';
+import '../SetSafeZone.dart';
 import 'AddChildScreen.dart';
 import 'ContactUsScreen.dart';
 
@@ -175,6 +176,14 @@ class _ProfilePageState extends State<ProfilePage> {
               onTap: () {
                 Navigator.pushReplacement(context,
                     MaterialPageRoute(builder: (context) => AddChildScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.safety_check),
+              title: const Text("Safe Zone"),
+              onTap: () {
+                Navigator.pushReplacement(context,
+                    MaterialPageRoute(builder: (context) => SetSafeZone()));
               },
             ),
             ListTile(

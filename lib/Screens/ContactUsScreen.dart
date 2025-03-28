@@ -61,6 +61,15 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
         appBar: AppBar(
           title: const Text("Contact Us"),
           backgroundColor: const Color(0xFFFFC0CB),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => MyFamilyScreen()),
+              );
+            },
+          ),
         ),
         body: Padding(
           padding: const EdgeInsets.all(16.0),

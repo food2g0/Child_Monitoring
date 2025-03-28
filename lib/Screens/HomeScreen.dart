@@ -115,26 +115,8 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
 
 
 
-  void showAlert(BuildContext context, String childName) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Alert'),
-          content: Text('$childName is outside the safe zone!'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-  Future<void> playBuzzer() async {
-    await _audioPlayer.play(AssetSource('assets/sounds/buzzer.mp3')); // Ensure you have the buzzer sound in assets
-  }
+
+
 
   Future<void> fetchUserEmailFromParentCollection() async {
     try {
@@ -219,10 +201,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
           ),
         );
 
-        if (!isWithinSafeZone(position)) {
-          showAlert(context, child['name'] ?? "Unknown Child");
-          playBuzzer();
-        }
+
       }
     }
 
@@ -362,7 +341,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.person),
+                leading: const Icon(Icons.safety_check),
                 title: const Text("Safe Zone"),
                 onTap: () {
                   Navigator.pushReplacement(context,
