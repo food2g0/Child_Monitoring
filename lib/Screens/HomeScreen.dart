@@ -4,6 +4,7 @@ import 'package:child_moni/Screens/AddChildScreen.dart';
 import 'package:child_moni/Screens/ContactUsScreen.dart';
 import 'package:child_moni/Screens/ProfileScreen.dart';
 import 'package:child_moni/Screens/SelectedChildScreen.dart';
+import 'package:child_moni/SetSafeZone.dart';
 import 'package:child_moni/api/firebasenotif_api.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -22,7 +23,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
   late GoogleMapController _controller;
   String userEmail = "Loading...";
   LatLng safeZoneCenter = LatLng(14.55027, 121.03269); // Replace with desired coordinates
-  double safeZoneRadius = 300;
+  double safeZoneRadius = 100;
   bool _isLoading = true;
   Set<Circle> _circles = {};
   bool _hasFetchedChildren = false;
@@ -34,6 +35,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
     target: LatLng(14.55027, 121.03269),
     zoom: 12.0,
   );
+  Set<Circle> _safeZones = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
@@ -41,38 +43,43 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
     super.initState();
     fetchUserEmailFromParentCollection();
     _fetchChildren();
-    _setSafeZone();
-    _fetchSafeZone();
+    _fetchSafeZones();
 
 
   }
 
-  Future<void> _fetchSafeZone() async {
+  void _fetchSafeZones() async {
     try {
-      final User? user = _auth.currentUser;
-      if (user != null) {
-        final DocumentSnapshot safeZoneDoc = await _firestore
-            .collection('Parent')
-            .doc(user.uid)
-            .collection('SafeZone')
-            .doc('safeZone')
-            .get();
-        if (safeZoneDoc.exists) {
-          setState(() {
-            safeZoneCenter = LatLng(
-              safeZoneDoc['center']['latitude'],
-              safeZoneDoc['center']['longitude'],
-            );
-            safeZoneRadius = safeZoneDoc['radius'];
-            _setSafeZone();
-          });
-        }
+      final User? user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final QuerySnapshot safeZonesSnapshot = await FirebaseFirestore.instance
+          .collection('Parent')
+          .doc(user.uid)
+          .collection('SafeZone')
+          .get();
+
+      Set<Circle> fetchedSafeZones = {};
+      for (var doc in safeZonesSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        fetchedSafeZones.add(Circle(
+          circleId: CircleId(doc.id),
+          center: LatLng(data['center']['latitude'], data['center']['longitude']),
+          radius: data['radius'].toDouble(),
+          fillColor: Colors.blue.withOpacity(0.3),
+          strokeColor: Colors.blue,
+          strokeWidth: 2,
+        ));
       }
-      await FirebaseNotificationApi().initNotification();
+
+      setState(() {
+        _safeZones = fetchedSafeZones;  // Make sure _safeZones is declared
+      });
     } catch (e) {
-      debugPrint('Error fetching safe zone: $e');
+      debugPrint('Error fetching safe zones: $e');
     }
   }
+
   void _setSafeZone() {
     setState(() {
       _circles.add(
@@ -105,32 +112,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
     double distance = calculateDistance(safeZoneCenter, childLocation);
     return distance <= safeZoneRadius;
   }
-  Future<void> _uploadSafeZone() async {
-    try {
-      final User? user = _auth.currentUser;
-      if (user != null) {
-        await _firestore
-            .collection('Parent')
-            .doc(user.uid)
-            .collection('SafeZone')
-            .doc('safeZone')
-            .set({
-          'center': {
-            'latitude': safeZoneCenter.latitude,
-            'longitude': safeZoneCenter.longitude,
-          },
-          'radius': safeZoneRadius,
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Safe zone set successfully!')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to set safe zone.')),
-      );
-    }
-  }
+
 
 
   void showAlert(BuildContext context, String childName) {
@@ -318,10 +300,7 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
           centerTitle: true,
           backgroundColor: const Color(0xFFFFC0CB),
           actions: [
-            IconButton(
-              icon: Icon(Icons.check),
-              onPressed: _uploadSafeZone,
-            ),
+
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: CircleAvatar(
@@ -380,6 +359,14 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
                 onTap: () {
                   Navigator.pushReplacement(context,
                       MaterialPageRoute(builder: (context) => ProfilePage()));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.person),
+                title: const Text("Safe Zone"),
+                onTap: () {
+                  Navigator.pushReplacement(context,
+                      MaterialPageRoute(builder: (context) => SetSafeZone()));
                 },
               ),
               ListTile(
