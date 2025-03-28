@@ -22,16 +22,16 @@ class _MyFamilyScreenState extends State<MyFamilyScreen> {
   late GoogleMapController _controller;
   String userEmail = "Loading...";
   LatLng safeZoneCenter = LatLng(14.55027, 121.03269); // Replace with desired coordinates
-  double safeZoneRadius = 1000; // Radius in meters
+  double safeZoneRadius = 300;
   bool _isLoading = true;
-  Set<Circle> _circles = {}; // Store circles for safe zones
+  Set<Circle> _circles = {};
   bool _hasFetchedChildren = false;
   List<Map<String, dynamic>> children = [];
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  Set<Marker> _markers = {}; // Store child location markers
+  Set<Marker> _markers = {};
   static const CameraPosition _initialCameraPosition = CameraPosition(
-    target: LatLng(14.55027, 121.03269), // Replace with desired coordinates
+    target: LatLng(14.55027, 121.03269),
     zoom: 12.0,
   );
   final AudioPlayer _audioPlayer = AudioPlayer();

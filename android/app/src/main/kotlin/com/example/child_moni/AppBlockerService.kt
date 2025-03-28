@@ -279,7 +279,7 @@ class AppBlockerService : AccessibilityService() {
             override fun onFinish() {
                 Log.d("AppBlockerService", "Time's up for $packageName. Blocking app.")
                 currentBlockedApp = packageName
-                showBlockScreen()
+                showTimesUpScreen()
                 updateAppBlockedStatus(packageName)
                 appTimers.remove(packageName) // Ensure it can restart later
             }
@@ -414,7 +414,66 @@ class AppBlockerService : AccessibilityService() {
             }
     }
 
+    private fun showTimesUpScreen() {
+        if (isOverlayVisible) {
+            Log.d("AppBlockerService", "Overlay already displayed")
+            return
+        }
 
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+
+        overlayContainer = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            alpha = 0.8f
+        }
+
+        val blockedText = TextView(this).apply {
+            text = "Time's up!"
+            setTextColor(Color.WHITE)
+            textSize = 24f
+            gravity = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER
+            }
+        }
+
+        val okButton = Button(this).apply {
+            text = "OK"
+            setOnClickListener {
+                removeOverlay()
+                navigateToHome()
+            }
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER
+                topMargin = 100
+            }
+        }
+
+        overlayContainer?.addView(blockedText)
+        overlayContainer?.addView(okButton)
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+
+        try {
+            windowManager.addView(overlayContainer, params)
+            isOverlayVisible = true
+            Log.d("AppBlockerService", "Block screen displayed")
+        } catch (e: Exception) {
+            Log.e("AppBlockerService", "Error displaying overlay: ${e.message}")
+        }
+    }
 
     private fun showBlockScreen() {
         if (isOverlayVisible) {

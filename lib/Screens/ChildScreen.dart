@@ -1,8 +1,8 @@
-import 'package:child_moni/Screens/ChildPin.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'ChildHomeScreen.dart';
 import 'ChooseScreen.dart';
 
 class ChildScreen extends StatefulWidget {
@@ -108,7 +108,7 @@ class _ChildScreenState extends State<ChildScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => ChildPinScreen(childDocId: child['id']),
+                        builder: (context) => ChildHomeScreen(childDocId: child['id']),
                       ),
                     );
 

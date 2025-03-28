@@ -28,6 +28,9 @@ class _SignupScreenState extends State<SignupScreen> {
   String confirmPasswordError = '';
   String pinError = '';
 
+  bool hasReadPrivacy = false;
+
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -44,6 +47,83 @@ class _SignupScreenState extends State<SignupScreen> {
       debugPrint("Error initializing Firebase: $e");
     }
   }
+  // void showTermsModal() {
+  //   showDialog(
+  //     context: context,
+  //     builder: (_) => AlertDialog(
+  //       title: Text("Terms of Service"),
+  //       content: SingleChildScrollView(
+  //         child: Text("Terms and Conditions content here..."),
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () {
+  //             setState(() {
+  //               hasReadTerms = true;
+  //             });
+  //             Navigator.pop(context);
+  //           },
+  //           child: Text("I Have Read"),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+  void showPrivacyModal() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text("Privacy Policy"),
+        content: SingleChildScrollView(
+          child: Text( "Privacy Policy\n\n" +
+          "Effective Date: 03-29-25\n\n" +
+          "MoniChild: Parental Monitoring Application (“we,” “us,” or “our”) is committed to protecting the privacy of our users (“you,” “your”). This Privacy Policy outlines how we collect, use, disclose, and protect your information when you use our mobile application, MoniChild.\n\n" +
+          "Information We Collect\n\n" +
+          "We collect various types of information to provide and improve our services, including:\n" +
+          "- Personal Information: This includes details such as your name and age will be provided during account registration.\n" +
+          "- Children’s Information: Information about your child, including their name, age, and location data (if location tracking is enabled).\n" +
+          "- Usage Data: Information about how you use the app, such as screen time, app usage, and device details.\n" +
+          "- Location Data: With your consent, we collect and track real-time location data of your child's device using the Google Maps API.\n\n" +
+          "How We Use Your Information\n\n" +
+          "We use the collected information to:\n" +
+          "- Monitor and manage your child's digital activities.\n" +
+          "- Provide location-based services (e.g., real-time location tracking).\n" +
+          "- Improve the app’s performance and features.\n" +
+          "- Send notifications and alerts related to your child’s activity.\n\n" +
+          "How We Share Your Information\n\n" +
+          "We do not share, sell, or rent your personal information to third parties except in the following cases:\n" +
+          "- Service Providers: We may share information with third-party service providers who assist in operating the app (e.g., Firebase for authentication and messaging).\n" +
+          "- Legal Requirements: If required by law, we may share your information with law enforcement or other authorities.\n\n" +
+          "Security of Your Information\n\n" +
+          "We take reasonable measures to protect your data from unauthorized access, use, or disclosure. However, no system is 100% secure, and we cannot guarantee the absolute security of your information.\n\n" +
+          "Children’s Privacy\n\n" +
+          "Our app is designed for parents to monitor children’s activities, and we take extra precautions to protect the privacy of minors. We require parental consent before collecting or tracking children’s data.\n\n" +
+          "Your Rights\n\n" +
+          "- Access: You have the right to access your personal information and data stored in the app.\n" +
+          "- Deletion: You can request that we delete any personal data we have collected about you or your child.\n" +
+          "- Opt-Out: You may opt out of location tracking or data collection at any time via the app settings.\n\n" +
+          "Changes to This Policy\n\n" +
+          "We may update this Privacy Policy from time to time. When we do, we will revise the 'Effective Date' at the top of this document. We encourage you to review this policy periodically.\n\n" +
+          "Contact Us\n\n" +
+          "If you have any questions or concerns about this Privacy Policy, please contact us at:\n" +
+          "- Email: Monichild@gmail.com\n" +
+              "- Phone: 0906-271-5596\n"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() {
+                hasReadPrivacy = true;
+              });
+              Navigator.pop(context);
+            },
+            child: Text("I Have Read"),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   String? validateEmail(String email) {
     if (email.isEmpty) return "Email is required.";
@@ -147,7 +227,39 @@ class _SignupScreenState extends State<SignupScreen> {
         title: Text("Terms and Privacy Policy"),
         content: SingleChildScrollView(
           child: Text(
-            "Terms and Conditions content here...",
+            "Privacy Policy\n\n" +
+                "Effective Date: 03-29-25\n\n" +
+                "MoniChild: Parental Monitoring Application (“we,” “us,” or “our”) is committed to protecting the privacy of our users (“you,” “your”). This Privacy Policy outlines how we collect, use, disclose, and protect your information when you use our mobile application, MoniChild.\n\n" +
+                "Information We Collect\n\n" +
+                "We collect various types of information to provide and improve our services, including:\n" +
+                "- Personal Information: This includes details such as your name and age will be provided during account registration.\n" +
+                "- Children’s Information: Information about your child, including their name, age, and location data (if location tracking is enabled).\n" +
+                "- Usage Data: Information about how you use the app, such as screen time, app usage, and device details.\n" +
+                "- Location Data: With your consent, we collect and track real-time location data of your child's device using the Google Maps API.\n\n" +
+                "How We Use Your Information\n\n" +
+                "We use the collected information to:\n" +
+                "- Monitor and manage your child's digital activities.\n" +
+                "- Provide location-based services (e.g., real-time location tracking).\n" +
+                "- Improve the app’s performance and features.\n" +
+                "- Send notifications and alerts related to your child’s activity.\n\n" +
+                "How We Share Your Information\n\n" +
+                "We do not share, sell, or rent your personal information to third parties except in the following cases:\n" +
+                "- Service Providers: We may share information with third-party service providers who assist in operating the app (e.g., Firebase for authentication and messaging).\n" +
+                "- Legal Requirements: If required by law, we may share your information with law enforcement or other authorities.\n\n" +
+                "Security of Your Information\n\n" +
+                "We take reasonable measures to protect your data from unauthorized access, use, or disclosure. However, no system is 100% secure, and we cannot guarantee the absolute security of your information.\n\n" +
+                "Children’s Privacy\n\n" +
+                "Our app is designed for parents to monitor children’s activities, and we take extra precautions to protect the privacy of minors. We require parental consent before collecting or tracking children’s data.\n\n" +
+                "Your Rights\n\n" +
+                "- Access: You have the right to access your personal information and data stored in the app.\n" +
+                "- Deletion: You can request that we delete any personal data we have collected about you or your child.\n" +
+                "- Opt-Out: You may opt out of location tracking or data collection at any time via the app settings.\n\n" +
+                "Changes to This Policy\n\n" +
+                "We may update this Privacy Policy from time to time. When we do, we will revise the 'Effective Date' at the top of this document. We encourage you to review this policy periodically.\n\n" +
+                "Contact Us\n\n" +
+                "If you have any questions or concerns about this Privacy Policy, please contact us at:\n" +
+                "- Email: Monichild@gmail.com\n" +
+                "- Phone: 0906-271-5596\n",
           ),
         ),
         actions: [
@@ -276,19 +388,30 @@ class _SignupScreenState extends State<SignupScreen> {
         Checkbox(
           value: isTermsChecked,
           onChanged: (bool? value) {
-            if (hasReadTerms) {
+            if (!hasReadTerms) {
+              showTermsModal();
+            } else if (!hasReadPrivacy) {
+              showPrivacyModal();
+            } else {
               setState(() {
                 isTermsChecked = value ?? false;
               });
-            } else {
-              showTermsModal();
             }
           },
         ),
         Expanded(
           child: GestureDetector(
-            onTap: showTermsModal,
-            child: Text("I agree to the Terms and Privacy Policy", style: TextStyle(decoration: TextDecoration.underline)),
+            onTap: () {
+              if (!hasReadTerms) {
+                showTermsModal();
+              } else {
+                showPrivacyModal();
+              }
+            },
+            child: Text(
+              "I agree to the Terms and Privacy Policy",
+              style: TextStyle(decoration: TextDecoration.underline),
+            ),
           ),
         ),
       ],
