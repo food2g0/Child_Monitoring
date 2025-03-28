@@ -20,6 +20,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   bool isTermsChecked = false;
   bool showPassword = false;
+  bool showConfirmPassword = false;
   bool isLoading = false;
   bool hasReadTerms = false;
   String emailError = '';
@@ -289,9 +290,9 @@ class _SignupScreenState extends State<SignupScreen> {
             SizedBox(height: 10),
             buildInputField("Phone Number", phoneController, phoneError, keyboardType: TextInputType.phone),
             SizedBox(height: 10),
-            buildPasswordField("Password", passwordController, passwordError),
+            buildPasswordField("Password", passwordController, passwordError, false),
             SizedBox(height: 10),
-            buildPasswordField("Confirm Password", confirmPasswordController, confirmPasswordError),
+            buildPasswordField("Confirm Password", confirmPasswordController, confirmPasswordError, true),
             SizedBox(height: 10),
             buildInputField("Enter 4-digit PIN", pinController, pinError, keyboardType: TextInputType.number, isPin: true),
             SizedBox(height: 20),
@@ -343,16 +344,30 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  Widget buildPasswordField(String label, TextEditingController controller, String error) {
+  Widget buildPasswordField(String label, TextEditingController controller, String error, bool isConfirm) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
           controller: controller,
-          obscureText: !showPassword,
+          obscureText: isConfirm ? !showConfirmPassword : !showPassword,
           decoration: InputDecoration(
             labelText: label,
             errorText: error.isEmpty ? null : error,
+            suffixIcon: IconButton(
+              icon: Icon(
+                isConfirm ? (showConfirmPassword ? Icons.visibility : Icons.visibility_off) : (showPassword ? Icons.visibility : Icons.visibility_off),
+              ),
+              onPressed: () {
+                setState(() {
+                  if (isConfirm) {
+                    showConfirmPassword = !showConfirmPassword;
+                  } else {
+                    showPassword = !showPassword;
+                  }
+                });
+              },
+            ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(
